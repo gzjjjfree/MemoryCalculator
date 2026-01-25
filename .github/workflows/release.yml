@@ -1,0 +1,79 @@
+name: Cross Platform Release
+
+on:
+  push:
+    tags:
+      - "v*" # 当推送 v1.0.0 等标签时触发
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.5"
+
+      - name: Install fyne-cross
+        run: go install github.com/lucor/fyne-cross@latest
+
+      - name: Build Android (ARM64)
+        run: |
+          # 使用 --release 会自动压缩并去除调试信息
+          # --arch arm64 指定只生成 arm64 架构
+          fyne-cross android --arch arm64 --app-id com.gzjjj.memorycalculator --icon Icon.png --release
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: fyne-cross/dist/android/*.apk
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.5"
+
+      - name: Install Fyne CLI
+        run: go install fyne.io/fyne/v2/cmd/fyne@latest
+
+      - name: Build macOS (ARM64)
+        run: |
+          # macOS 环境下直接使用 fyne package 编译 arm64
+          # 如果需要发布，建议在此处进行签名
+          fyne package -os darwin -name MemoryCalculator -icon Icon.png
+          # 压缩为 zip 方便下载
+          zip -r MemoryCalculator_macOS_arm64.zip MemoryCalculator.app
+
+      - name: Upload macOS App
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: "*.zip"
+
+  create-release:
+    needs: [build-android, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            android-apk/*.apk
+            macos-app/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
