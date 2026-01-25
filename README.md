@@ -25,7 +25,8 @@ Memory Calculator 是一款基于 Go 语言和 Fyne 框架开发的跨平台计�
 ## 📦 项目结构
 ```bash
 Plaintext
-``
+```  
+```bash
 .
 ├── main.go          # 应用入口及初始化
 ├── ui.go            # 核心 UI 构建与自定义布局逻辑
@@ -61,15 +62,15 @@ Bash
 fyne-cross android --arch arm64 --app-id com.gzjjj.memorycalculator --release --icon Icon.png
 // fyne package -os android/arm64 -id com.gzjjj.memorycalculator --release --icon Icon.png
 ```
-# 📥 下载安装
+## 📥 下载安装
 请前往 [Releases](https://github.com/gzjjjfree/MemoryCalculator/releases) 页面下载：
 
 - **Android**: MemoryCalculator-v1.0.0-arm64.apk
 
 - **macOS**: MemoryCalculator_macOS_arm64.zip
 
-# 📝 许可证
-本项目基于 MIT License 开源。
+## 📝 许可证
+本项目基于 **MIT License** 开源。
 
-# 🤝 贡献与反馈
+## 🤝 贡献与反馈
 如果您在使用过程中遇到任何问题，欢迎提交 [Issue](https://github.com/gzjjjfree/MemoryCalculator/issues) 或 Pull Request。
