@@ -25,11 +25,14 @@ jobs:
         run: |
           # 1. 将字符串还原为文件
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          # 2. 赋予读权限，防止 Docker 容器内无法读取
+          chmod 644 release.keystore
           # 2. 运行打包命令
           fyne-cross android \
             --release \
             --keystore release.keystore \
             --keystore-pass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            --key-name "${{ secrets.KEY_ALIAS }}" \
             --key-pass "${{ secrets.KEYSTORE_PASSWORD }}" \
             --arch arm64 \
             --app-id com.gzjjj.memorycalculator \
