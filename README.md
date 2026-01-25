@@ -1,5 +1,5 @@
 # 📱 Memory Calculator (GZJJJ)
-![Go Report Card](https://goreportcard.com/report/github.com/gzjjjfree/MemoryCalculator)
+
 ![Downloads](https://img.shields.io/github/downloads/gzjjjfree/MemoryCalculator/total?style=flat-square&color=orange)
 
 Memory Calculator 是一款基于 Go 语言和 Fyne 框架开发的跨平台计算工具。
@@ -14,19 +14,18 @@ Memory Calculator 是一款基于 Go 语言和 Fyne 框架开发的跨平台计�
 - **🎨 自定义主题**：内置 24px 大字体适配及禁用色视觉优化。
 
 ## 🛠️ 技术栈
-- **Language**: Go (Golang)(https://golang.org/)
+- **Language**: [Go (Golang)](https://golang.org/)
 
-- **UI Framework**: Fyne v2(https://fyne.io/)
+- **UI Framework**: [Fyne v2](https://fyne.io/)
 
-- **Build Tool**: fyne-cross(https://github.com/lucor/fyne-cross) (用于交叉编译 Android)
+- **Build Tool**: [fyne-cross](https://github.com/lucor/fyne-cross) (用于交叉编译 Android)
 
 - **CI/CD**: GitHub Actions
 
 ## 📦 项目结构
 ```bash
 Plaintext
-```
-```bash
+``
 .
 ├── main.go          # 应用入口及初始化
 ├── ui.go            # 核心 UI 构建与自定义布局逻辑
@@ -63,7 +62,7 @@ fyne-cross android --arch arm64 --app-id com.gzjjj.memorycalculator --release --
 // fyne package -os android/arm64 -id com.gzjjj.memorycalculator --release --icon Icon.png
 ```
 # 📥 下载安装
-请前往 Releases(https://github.com/gzjjjfree/MemoryCalculator/releases) 页面下载：
+请前往 [Releases](https://github.com/gzjjjfree/MemoryCalculator/releases) 页面下载：
 
 - **Android**: MemoryCalculator-v1.0.0-arm64.apk
 
@@ -73,4 +72,4 @@ fyne-cross android --arch arm64 --app-id com.gzjjj.memorycalculator --release --
 本项目基于 MIT License 开源。
 
 # 🤝 贡献与反馈
-如果您在使用过程中遇到任何问题，欢迎提交 Issue(https://github.com/gzjjjfree/MemoryCalculator/issues) 或 Pull Request。
+如果您在使用过程中遇到任何问题，欢迎提交 [Issue](https://github.com/gzjjjfree/MemoryCalculator/issues) 或 Pull Request。
