@@ -50,6 +50,7 @@ jobs:
             -keyStore release.keystore \
             -keyStorePass "$K_PASS" \
             -keyPass "$K_PASS" \
+            -appVersion "${GITHUB_REF#refs/tags/}"
             -name MemoryCalculator
 
       - name: Upload Android APK
