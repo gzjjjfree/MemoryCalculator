@@ -41,12 +41,13 @@ jobs:
           curl -L -o bundletool.jar https://github.com/google/bundletool/releases/download/${BT_VERSION}/bundletool-all-${BT_VERSION}.jar
 
           # 3. 创建一个命令脚本，让 fyne 能够通过 "bundletool" 这个名字调用它
-          echo "java -jar $(pwd)/bundletool.jar \"\$@\"" > bundletool
+          # 使用 printf 确保换行和内容准确，添加 #!/bin/bash
+          printf "#!/bin/bash\njava -jar $(pwd)/bundletool.jar \"\$@\"" > bundletool
           chmod +x bundletool
           export PATH=$PATH:$(pwd)
           
           # 验证 bundletool 是否可用
-          bundletool version
+          ./bundletool version
 
           # 1. 还原 Keystore
           echo "$K_BASE64" | base64 -d > release.keystore
