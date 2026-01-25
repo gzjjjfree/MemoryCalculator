@@ -36,8 +36,18 @@ jobs:
           K_ALIAS: "memory-calc-alias"
         run: |
           # 2. 下载并安装 bundletool (解决报错核心)
-          sudo apt-get update && sudo apt-get install -y bundletool
+          # 2. 手动下载 bundletool (Google 官方)
+          BT_VERSION="1.17.0"
+          curl -L -o bundletool.jar https://github.com/google/bundletool/releases/download/${BT_VERSION}/bundletool-all-${BT_VERSION}.jar
+
+          # 3. 创建一个命令脚本，让 fyne 能够通过 "bundletool" 这个名字调用它
+          echo "java -jar $(pwd)/bundletool.jar \"\$@\"" > bundletool
+          chmod +x bundletool
+          export PATH=$PATH:$(pwd)
           
+          # 验证 bundletool 是否可用
+          bundletool version
+
           # 1. 还原 Keystore
           echo "$K_BASE64" | base64 -d > release.keystore
 
