@@ -25,7 +25,7 @@ jobs:
         run: |
           # 使用 --release 会自动压缩并去除调试信息
           # --arch arm64 指定只生成 arm64 架构
-          fyne-cross android --image fyneio/fyne-cross-images:android --arch arm64 --app-id com.gzjjj.memorycalculator --icon Icon.png --release
+          fyne-cross android -v --arch arm64 --app-id com.gzjjj.memorycalculator --icon Icon.png --release
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
