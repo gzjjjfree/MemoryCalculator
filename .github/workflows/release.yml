@@ -18,38 +18,46 @@ jobs:
         with:
           go-version: "1.24"
 
-      - name: Build Android (ARM64)
+      - name: Set up Java
+        # 签名工具 apksigner 需要 Java 环境
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Fyne CLI
+        # 使用你本地成功的 fyne 命令工具
+        run: go install fyne.io/fyne/v2/cmd/fyne@latest
+
+      - name: Build Android (Native Mode)
         env:
-          # 使用环境变量传递 Secret，这是最安全的方式，防止 shell 解析特殊字符
           K_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           K_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
-          K_ALIAS: "memory-calc-alias" # 填入你 keytool 查出来的别名
+          K_ALIAS: "memory-calc-alias"
         run: |
-          # 1. 安装最新版工具
-          go install github.com/fyne-io/fyne-cross@latest
+          # 1. 还原 Keystore
+          echo "$K_BASE64" | base64 -d > release.keystore
           
-          # 2. 还原 Keystore 并确保权限正确
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
-          if [ ! -s release.keystore ]; then echo "Keystore is empty!"; exit 1; fi
+          # 2. 配置 Android 环境变量 (使用 GitHub Runner 预装路径)
+          # GitHub Ubuntu 镜像的 SDK 默认路径如下：
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          
+          # 自动查找最新的 NDK 路径
+          export ANDROID_NDK_HOME=$(ls -d $ANDROID_SDK_ROOT/ndk/* | tail -1)
+          
+          echo "Using Android SDK: $ANDROID_HOME"
+          echo "Using Android NDK: $ANDROID_NDK_HOME"
 
-          chmod 644 release.keystore
-          
-          # 1. 检查文件大小，确保 base64 转换没问题
-          ls -lh release.keystore
-          # 3. 运行构建
-          # 注意：密码通过变量传递，避免直接写在命令行字符串中
-          fyne-cross android \
-            --debug \
-            --pull \
+          # 3. 执行你本地成功的打包命令
+          # 注意：fyne package 会自动处理剩下的步骤
+          fyne package -os android/arm64 \
+            --appID com.gzjjj.memorycalculator \
+            --icon Icon.png \
             --release \
             --keystore release.keystore \
-            --keystore-pass "$K_PASS" \
-            --key-pass "$K_PASS" \
-            --key-name "$K_ALIAS" \
-            --arch arm64 \
-            --app-id com.gzjjj.memorycalculator \
-            --icon Icon.png \
-            --no-cache # 确保不使用旧的容器残余
+            --keystorePass "$K_PASS" \
+            --keyPass "$K_PASS" \
+            --name MemoryCalculator
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
