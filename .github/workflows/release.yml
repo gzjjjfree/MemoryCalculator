@@ -79,6 +79,7 @@ jobs:
             -keyPass "$K_PASS" \
             -appVersion "$CLEAN_VERSION" \
             -appBuild "$BUILD_ID" \
+            -keyName "$K_ALIAS" \
             -name MemoryCalculator
 
       - name: Upload Android APK
