@@ -19,7 +19,7 @@ jobs:
           go-version: "1.25.5"
 
       - name: Install fyne-cross
-        run: go install github.com/lucor/fyne-cross@latest
+        run: go install github.com/fyne-io/fyne-cross@latest
 
       - name: Build Android (ARM64)
         run: |
