@@ -19,17 +19,24 @@ jobs:
           go-version: "1.24"
 
       - name: Build Android (ARM64)
-        uses: fyne-io/fyne-cross@master
-        with:
-          target: android
-          arch: arm64
-          app-id: com.gzjjj.memorycalculator
-          icon: Icon.png
-          release: true
-          key-index: memory-calc-alias
-          keystore-data: ${{ secrets.KEYSTORE_BASE64 }}
-          keystore-pass: ${{ secrets.KEYSTORE_PASSWORD }}
-          key-pass: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          # 1. 安装构建工具
+          go install github.com/fyne-io/fyne-cross@latest
+          
+          # 2. 从 Secret 还原 Keystore 文件
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          
+          # 3. 运行构建（手动指定所有参数，确保路径正确）
+          # 注意：这里的 --key-name 必须填你刚才 keytool 查出来的别名
+          fyne-cross android \
+            --release \
+            --keystore release.keystore \
+            --keystore-pass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            --key-name "memory-calc-alias" \
+            --key-pass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            --arch arm64 \
+            --app-id com.gzjjj.memorycalculator \
+            --icon Icon.png
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
