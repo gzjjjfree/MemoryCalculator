@@ -38,26 +38,19 @@ jobs:
           # 1. 还原 Keystore
           echo "$K_BASE64" | base64 -d > release.keystore
           
-          # 2. 配置 Android 环境变量 (使用 GitHub Runner 预装路径)
-          # GitHub Ubuntu 镜像的 SDK 默认路径如下：
+          # 3. 设置 Android 环境变量
           export ANDROID_HOME=$ANDROID_SDK_ROOT
-          
-          # 自动查找最新的 NDK 路径
           export ANDROID_NDK_HOME=$(ls -d $ANDROID_SDK_ROOT/ndk/* | tail -1)
-          
-          echo "Using Android SDK: $ANDROID_HOME"
-          echo "Using Android NDK: $ANDROID_NDK_HOME"
 
-          # 3. 执行你本地成功的打包命令
-          # 注意：fyne package 会自动处理剩下的步骤
-          fyne package -os android/arm64 \
-            --appID com.gzjjj.memorycalculator \
-            --icon Icon.png \
-            --release \
-            --keystore release.keystore \
-            --keystorePass "$K_PASS" \
-            --keyPass "$K_PASS" \
-            --name MemoryCalculator
+          # 4. 使用 release 命令进行正式打包
+          # 注意：这里改成了 release，并且参数名在 release 下是有效的
+          fyne release -os android/arm64 \
+            -appID com.gzjjj.memorycalculator \
+            -icon Icon.png \
+            -keystore release.keystore \
+            -keystorePass "$K_PASS" \
+            -keyPass "$K_PASS" \
+            -name MemoryCalculator
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
