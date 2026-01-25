@@ -48,8 +48,8 @@ jobs:
             -appID com.gzjjj.memorycalculator \
             -icon Icon.png \
             -keystore release.keystore \
-            -keystorePass "$K_PASS" \
-            -keyPass "$K_PASS" \
+            -keystore-pass "$K_PASS" \
+            -key-pass "$K_PASS" \
             -name MemoryCalculator
 
       - name: Upload Android APK
