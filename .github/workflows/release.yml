@@ -36,9 +36,6 @@ jobs:
           
           # 1. 检查文件大小，确保 base64 转换没问题
           ls -lh release.keystore
-
-          fyne-cross android --command "ls -l /opt/android-sdk/build-tools/"
-
           # 3. 运行构建
           # 注意：密码通过变量传递，避免直接写在命令行字符串中
           fyne-cross android \
