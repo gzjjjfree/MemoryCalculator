@@ -19,7 +19,7 @@ jobs:
           go-version: "1.24"
 
       - name: Build Android (ARM64)
-        uses: fyne-io/fyne-cross-action@v1
+        uses: fyne-io/fyne-cross@master
         with:
           target: android
           arch: arm64
