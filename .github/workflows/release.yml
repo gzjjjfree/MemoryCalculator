@@ -47,7 +47,7 @@ jobs:
           fyne release -os android/arm64 \
             -appID com.gzjjj.memorycalculator \
             -icon Icon.png \
-            -keystore release.keystore \
+            -keyStore release.keystore \
             -keystore-pass "$K_PASS" \
             -key-pass "$K_PASS" \
             -name MemoryCalculator
