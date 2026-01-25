@@ -38,11 +38,13 @@ jobs:
           # 1. 还原 Keystore
           echo "$K_BASE64" | base64 -d > release.keystore
 
-          # 2. 处理版本号：将 v1.0.0 转换为 1.0.0
-          RAW_VERSION="${{ github.ref_name }}"
-          # 去掉开头的 v (如果存在)
-          CLEAN_VERSION=$(echo $RAW_VERSION | sed 's/^v//')
-          echo "Building version: $CLEAN_VERSION"
+          # 如果 RAW_VERSION 看起来不像版本号（比如是 main 或 master），则设为 0.0.1
+          if [[ $RAW_VERSION =~ ^v?[0-9] ]]; then
+            CLEAN_VERSION=$(echo $RAW_VERSION | sed 's/^v//')
+          else
+            CLEAN_VERSION="0.0.1"
+          fi
+          echo "Final App Version: $CLEAN_VERSION"
           
           # 3. 设置 Android 环境变量
           export ANDROID_HOME=$ANDROID_SDK_ROOT
