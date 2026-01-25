@@ -23,10 +23,8 @@ Memory Calculator 是一款基于 Go 语言和 Fyne 框架开发的跨平台计�
 - **CI/CD**: GitHub Actions
 
 ## 📦 项目结构
-```bash
-Plaintext
-```  
-```bash
+
+```Plaintext
 .
 ├── main.go          # 应用入口及初始化
 ├── ui.go            # 核心 UI 构建与自定义布局逻辑
@@ -41,23 +39,17 @@ Plaintext
 1. 安装 Go 1.21 或更高版本。
 
 2. 安装 Fyne 依赖：
-```bash
-Bash
-```
+
 ```bash
 go get fyne.io/fyne/v2
 ```
 ### 本地运行
-```bash
-Bash
-```
+
 ```bash
 go run .
 ```
 ### 编译 Android 版本 (ARM64)
-```bash
-Bash
-```
+
 ```bash
 fyne-cross android --arch arm64 --app-id com.gzjjj.memorycalculator --release --icon Icon.png
 // fyne package -os android/arm64 -id com.gzjjj.memorycalculator --release --icon Icon.png
