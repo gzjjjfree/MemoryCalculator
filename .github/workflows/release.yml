@@ -35,6 +35,9 @@ jobs:
           K_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
           K_ALIAS: "memory-calc-alias"
         run: |
+          # 2. 下载并安装 bundletool (解决报错核心)
+          sudo apt-get update && sudo apt-get install -y bundletool
+          
           # 1. 还原 Keystore
           echo "$K_BASE64" | base64 -d > release.keystore
 
