@@ -29,12 +29,21 @@ jobs:
           go install github.com/fyne-io/fyne-cross@latest
           
           # 2. 还原 Keystore 并确保权限正确
-          echo "$K_BASE64" | base64 -d > release.keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          if [ ! -s release.keystore ]; then echo "Keystore is empty!"; exit 1; fi
+
           chmod 644 release.keystore
           
+          # 1. 检查文件大小，确保 base64 转换没问题
+          ls -lh release.keystore
+
+          fyne-cross android --command "ls -l /opt/android-sdk/build-tools/"
+
           # 3. 运行构建
           # 注意：密码通过变量传递，避免直接写在命令行字符串中
           fyne-cross android \
+            --debug \
+            --pull \
             --release \
             --keystore release.keystore \
             --keystore-pass "$K_PASS" \
