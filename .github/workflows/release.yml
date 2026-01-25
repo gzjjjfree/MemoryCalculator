@@ -21,15 +21,11 @@ jobs:
       - name: Install fyne-cross
         run: go install github.com/fyne-io/fyne-cross@latest
 
-      - name: Build Android
-        uses: lucor/fyne-cross-action@v1
-        with:
-          target: android
-          arch: arm64
-          # 确保 app-id 与你代码中定义的完全一致
-          app-id: com.gzjjj.memorycalculator
-          icon: Icon.png
-          release: true
+      - name: Build Android (ARM64)
+        run: |
+          # 使用 --release 会自动压缩并去除调试信息
+          # --arch arm64 指定只生成 arm64 架构
+          fyne-cross android -v --image fyneio/fyne-cross-images:android --arch arm64 --app-id com.gzjjj.memorycalculator --icon Icon.png --release
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
