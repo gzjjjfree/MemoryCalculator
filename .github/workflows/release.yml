@@ -44,7 +44,12 @@ jobs:
           else
             CLEAN_VERSION="0.0.1"
           fi
+          # 4. 获取 Build ID (appBuild)
+          # 使用 GitHub 的运行次数作为版本代码，确保它是递增的正整数
+          BUILD_ID=${{ github.run_number }}
+          
           echo "Final App Version: $CLEAN_VERSION"
+          echo "Final Build ID: $BUILD_ID"
           
           # 3. 设置 Android 环境变量
           export ANDROID_HOME=$ANDROID_SDK_ROOT
@@ -59,6 +64,7 @@ jobs:
             -keyStorePass "$K_PASS" \
             -keyPass "$K_PASS" \
             -appVersion "$CLEAN_VERSION" \
+            -appBuild "$BUILD_ID" \
             -name MemoryCalculator
 
       - name: Upload Android APK
