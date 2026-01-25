@@ -18,9 +18,6 @@ jobs:
         with:
           go-version: "1.24"
 
-      - name: Install fyne-cross
-        run: go install github.com/fyne-io/fyne-cross@latest
-
       - name: Build Android (ARM64)
         uses: lucor/fyne-cross-action@v1
         with:
@@ -29,6 +26,7 @@ jobs:
           app-id: com.gzjjj.memorycalculator
           icon: Icon.png
           release: true
+          key-index: memory-calc-alias
           keystore-data: ${{ secrets.KEYSTORE_BASE64 }}
           keystore-pass: ${{ secrets.KEYSTORE_PASSWORD }}
           key-pass: ${{ secrets.KEYSTORE_PASSWORD }}
