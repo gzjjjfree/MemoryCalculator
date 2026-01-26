@@ -86,7 +86,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: fyne-cross/dist/android-arm64/*.apk
+          path: ./*.apk
 
   build-macos:
     runs-on: macos-latest
