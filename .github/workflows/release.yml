@@ -42,7 +42,7 @@ jobs:
 
           # 3. 创建一个命令脚本，让 fyne 能够通过 "bundletool" 这个名字调用它
           # 使用 printf 确保换行和内容准确，添加 #!/bin/bash
-          printf '#!/bin/bash\njava -jar $(pwd)/bundletool.jar \"\$@\"' > bundletool
+          printf "#!/bin/bash\njava -jar $(pwd)/bundletool.jar \"\$@\"" > bundletool
           chmod +x bundletool
           export PATH=$PATH:$(pwd)
           
