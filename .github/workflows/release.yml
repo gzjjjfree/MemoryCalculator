@@ -81,7 +81,14 @@ jobs:
             -appBuild "$BUILD_ID" \
             -keyName "$K_ALIAS" \
             -name MemoryCalculator \
-            -install
+            
+            # 使用 bundletool 生成包含通用 APK 的 apks 压缩包
+            ./bundletool build-apks --bundle=MemoryCalculator.aab --output=MemoryCalculator.apks --mode=universal --ks=release.keystore --ks-pass=pass:"$K_PASS" --ks-key-alias="$K_ALIAS" --key-pass=pass:"$K_PASS"
+          
+            # 从 .apks 中提取出真正的 .apk 文件
+            unzip -p MemoryCalculator.apks universal.apk > MemoryCalculator.apk
+          
+            echo "Success! MemoryCalculator.apk has been generated."
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
