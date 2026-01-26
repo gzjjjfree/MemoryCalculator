@@ -1,5 +1,7 @@
 # 二进制文件和构建产物
 *.apk
+*.apks
+*.aab
 *.exe
 *.bin
 MemoryCalculator
