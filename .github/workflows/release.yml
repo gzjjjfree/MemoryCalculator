@@ -80,7 +80,7 @@ jobs:
             -appVersion "$CLEAN_VERSION" \
             -appBuild "$BUILD_ID" \
             -keyName "$K_ALIAS" \
-            -name MemoryCalculator \
+            -name MemoryCalculator
             
             # 使用 bundletool 生成包含通用 APK 的 apks 压缩包
             ./bundletool build-apks --bundle=MemoryCalculator.aab --output=MemoryCalculator.apks --mode=universal --ks=release.keystore --ks-pass=pass:"$K_PASS" --ks-key-alias="$K_ALIAS" --key-pass=pass:"$K_PASS"
