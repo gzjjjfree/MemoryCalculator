@@ -80,7 +80,8 @@ jobs:
             -appVersion "$CLEAN_VERSION" \
             -appBuild "$BUILD_ID" \
             -keyName "$K_ALIAS" \
-            -name MemoryCalculator
+            -name MemoryCalculator \
+            -install
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
