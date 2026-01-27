@@ -62,7 +62,7 @@ fyne-cross android --arch arm64 --app-id com.gzjjj.memorycalculator --release --
 - **macOS**: MemoryCalculator_macOS_arm64.zip
 
 ## 📝 许可证
-本项目基于 **MIT License** 开源。
+本项目基于 [**MIT License**](https://github.com/gzjjjfree/MemoryCalculator/blob/main/LICENSE) 开源。
 
 ## 🤝 贡献与反馈
 如果您在使用过程中遇到任何问题，欢迎提交 [Issue](https://github.com/gzjjjfree/MemoryCalculator/issues) 或 Pull Request。
