@@ -7,72 +7,73 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
 var isChangeRow bool = false
 var stateMutex sync.Mutex
-var targetStyle fyne.ThemeSizeName = BigFont
+var richInputFontSize float32 = 42
+var labelFontSize float32 = 18
 
-// 更新输入字体大小
-func updateFontSizeBasedOnWidth(text string, richInput *widget.RichText) (fyne.ThemeSizeName, string, bool) {
+// 全局变量：当前输入框宽度和字体大小
+var actualW float32 = 300 // 可在UI初始化时动态赋值
+
+// 字体大小自适应，step=2
+func updateFontSizeBasedOnWidth(text string, richInput *widget.RichText) (string, bool) {
 	var changeText string = text
-
-	actualW := richInput.Size().Width - theme.Padding()*4
-
 	if actualW <= 0 {
-		return targetStyle, changeText, false
+		return changeText, false
 	}
-
 	if isChangeRow {
-		// 查找最后一个换行符的位置
 		lastNewlineIdx := strings.LastIndex(changeText, "\n")
-
-		// 确定我们要搜索的起始位置（换行符之后）
 		searchStart := 0
 		if lastNewlineIdx != -1 {
 			searchStart = lastNewlineIdx + 1
 		}
 		lastLine := changeText[searchStart:]
-
-		if measureWidth(lastLine, 18) > actualW { // 换行
+		if measureWidth(lastLine, 18) > actualW {
 			operators := "+-×÷*/"
 			lastOpIdxInLine := strings.LastIndexAny(lastLine, operators)
 			if lastOpIdxInLine != -1 {
-				// 计算运算符在原完整字符串中的绝对位置
 				absoluteOpIdx := searchStart + lastOpIdxInLine
-
-				// 拼接字符串：[运算符前的内容] + \n + [运算符及其后的内容]
 				changeText = changeText[:absoluteOpIdx] + "\n" + changeText[absoluteOpIdx:]
 			}
-			return targetStyle, changeText, true
+			return changeText, true
 		}
-		return targetStyle, text, false
-	}
-	if measureWidth(text, 36) > actualW {
-		targetStyle = LargeFont
-		if measureWidth(text, 30) > actualW {
-			targetStyle = MediumFont
-			if measureWidth(text, 24) > actualW {
-				targetStyle = SmallFont
-				if measureWidth(text, 18) > actualW {
-					stateMutex.Lock()
-					isChangeRow = true
-					stateMutex.Unlock()
-					return updateFontSizeBasedOnWidth(text, richInput)
-				}
-			}
-		}
+		return text, false
 	}
 
-	return targetStyle, text, false
+	fontSizes := []float32{42, 40, 38, 36, 34, 32, 30, 28, 26, 24, 22, 20, 18}
+	for _, size := range fontSizes {
+		if measureWidth(text, size) <= actualW {
+			richInputFontSize = size
+			return text, false
+		}
+	}
+	if richInputFontSize == 18 {
+		return text, false
+	}
+	stateMutex.Lock()
+	isChangeRow = true
+	stateMutex.Unlock()
+	return updateFontSizeBasedOnWidth(text, richInput)
+}
+
+// 获取当前字体大小（step=2递减），text取自全局state
+func getFontSize() float32 {
+	return richInputFontSize
+}
+
+func getLabelFontSize() float32 {
+	return labelFontSize
 }
 
 // 测量文本在特定字号下的物理宽度
 func measureWidth(text string, fontSize float32) float32 {
 	style := fyne.TextStyle{Bold: true}
-	// 获取当前驱动并测量。注意：RenderedTextSize 返回 (fyne.Size, float32)
+	if fyne.CurrentApp() == nil || fyne.CurrentApp().Driver() == nil {
+		return float32(len(text)) * fontSize // fallback
+	}
 	size, _ := fyne.CurrentApp().Driver().RenderedTextSize(text, fontSize, style, nil)
 	return size.Width
 }
@@ -86,7 +87,9 @@ func (s *CalcState) ClearAllHistoryLocal() error {
 	storage := fyne.CurrentApp().Storage()
 	err := storage.Remove("history.txt")
 	if err != nil {
-		// 如果文件本身不存在，Remove 会报错，这里可以根据需要处理
+		if strings.Contains(err.Error(), "not found") {
+			return nil
+		}
 		return err
 	}
 	return nil
@@ -135,7 +138,7 @@ func (s *CalcState) appendToLocalFile(newRecord string) {
 			allContent = strings.Join(lines[len(lines)-5000:], "\n")
 		}
 	}
-	
+
 	// 写入
 	storage := fyne.CurrentApp().Storage()
 	writer, err := storage.Create("history.txt")

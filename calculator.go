@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 
 	"fyne.io/fyne/v2/data/binding"
@@ -60,9 +61,9 @@ func (s *CalcState) OnTap(char string) {
 		if result != "0" && strings.ContainsAny(char, "+-×÷)") {
 			current = result[2:]
 		}
+		s.IsResultMode.Set(false)
 		s.Display.Set(current + char)
 		s.IsNewNumber = false
-		s.IsResultMode.Set(false)
 		return
 	} else {
 		// 处理重复点击运算符：如果最后一个字符是运算符，再次点击则替换它
@@ -98,7 +99,7 @@ func (s *CalcState) OnClear() {
 
 	s.Display.Set("")
 	s.Result.Set("0")
-	
+
 	s.IsNewNumber = true
 	isChangeRow = false
 	s.IsResultMode.Set(true)
@@ -136,11 +137,19 @@ func (s *CalcState) Calculate(equation string) string {
 
 	equation = checkLastOperator(equation)
 
-	// 符号清洗与自动补全
-	exprStr := strings.ReplaceAll(equation, "×", "*")
+	// 安全符号替换与自动补全
+	exprStr := equation
+	// 替换 × ÷
+	exprStr = strings.ReplaceAll(exprStr, "×", "*")
 	exprStr = strings.ReplaceAll(exprStr, "÷", "/")
-	exprStr = strings.ReplaceAll(exprStr, "π", fmt.Sprintf("%f", math.Pi))
-	exprStr = strings.ReplaceAll(exprStr, "e", fmt.Sprintf("%f", math.E))
+	exprStr = strings.ReplaceAll(exprStr, "%", "*0.01")     // 修复百分号
+	exprStr = strings.ReplaceAll(exprStr, "1/x(", "inv(")  // 修复倒数函数
+	// 替换 π（仅独立常量，不在函数名中）
+	exprStr = replaceConstant(exprStr, "π", fmt.Sprintf("%f", math.Pi))
+	// 替换 e（仅独立常量，不在函数名、exp等中）
+	exprStr = replaceConstant(exprStr, "e", fmt.Sprintf("%f", math.E))
+	// 替换 ^ 为 pow 函数（如 2^3 -> pow(2,3)）
+	exprStr = replacePower(exprStr)
 
 	// 自动补全未闭合的括号 (防止 govaluate 报错)
 	leftCount := strings.Count(exprStr, "(")
@@ -152,7 +161,7 @@ func (s *CalcState) Calculate(equation string) string {
 	isRad, _ := s.IsRadian.Get()
 	// 定义高级函数映射 (增加安全检查)
 	functions := map[string]govaluate.ExpressionFunction{
-		"sin": func(args ...interface{}) (interface{}, error) {
+		"sin": func(args ...any) (any, error) {
 			if len(args) < 1 {
 				return 0.0, nil
 			}
@@ -166,9 +175,12 @@ func (s *CalcState) Calculate(equation string) string {
 			return math.Sin(val), nil
 		},
 		"asin": func(args ...interface{}) (interface{}, error) {
-			val := args[0].(float64)
-			if val < -1 || val > 1 {
-				return nil, errors.New("Domain Error") // govaluate 会捕获这个错误
+			if len(args) < 1 {
+				return nil, errors.New("Domain Error")
+			}
+			val, ok := args[0].(float64)
+			if !ok || val < -1 || val > 1 {
+				return nil, errors.New("Domain Error")
 			}
 			res := math.Asin(val)
 			if !isRad {
@@ -187,7 +199,8 @@ func (s *CalcState) Calculate(equation string) string {
 			if !isRad { // 如果不是弧度模式，进行转换
 				val = val * math.Pi / 180
 			}
-			return math.Cos(val * math.Pi / 180), nil
+			return math.Cos(val), nil
+			//return math.Cos(val * math.Pi / 180), nil
 		},
 		"acos": func(args ...interface{}) (interface{}, error) {
 			val := args[0].(float64)
@@ -211,7 +224,7 @@ func (s *CalcState) Calculate(equation string) string {
 			if !isRad { // 如果不是弧度模式，进行转换
 				val = val * math.Pi / 180
 			}
-			return math.Tan(val * math.Pi / 180), nil
+			return math.Tan(val), nil
 		},
 		"atan": func(args ...interface{}) (interface{}, error) {
 			val := args[0].(float64)
@@ -251,6 +264,12 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return math.Log(val), nil
 		},
+		"pow": func(args ...interface{}) (interface{}, error) {
+			if len(args) < 2 {
+				return nil, errors.New("pow requires 2 arguments")
+			}
+			return math.Pow(args[0].(float64), args[1].(float64)), nil
+		},
 		"pow10": func(args ...interface{}) (interface{}, error) {
 			return math.Pow(10, args[0].(float64)), nil
 		},
@@ -272,20 +291,62 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return res, nil
 		},
+		"inv": func(args ...any) (any, error) {
+			val := args[0].(float64)
+			if val == 0 {
+				return nil, errors.New("Division by zero")
+			}
+			return 1.0 / val, nil
+		},
 	}
 
 	// 执行解析计算
 	expression, err := govaluate.NewEvaluableExpressionWithFunctions(exprStr, functions)
-	if err != nil {		
+	if err != nil {
 		return ""
 	}
 
-	res, err := expression.Evaluate(nil)
+	res, err := expression.Evaluate(map[string]interface{}{})
+	//res, err := expression.Evaluate(nil)
 	if err != nil {
 		return "Error"
 	}
+	// 检查结果是否有效
+	f, ok := res.(float64)
+	if !ok {
+		return "Error"
+	}
+	if math.IsInf(f, 0) || math.IsNaN(f) {
+		return "Error" // 这样 1/0 就会返回 Error 了
+	}
 	// 格式化输出，如果是整数则不带小数点
 	return fmt.Sprintf("%g", res)
+}
+
+// 安全替换常量（仅替换独立的 π、e，不在函数名、变量名中）
+func replaceConstant(expr, symbol, value string) string {
+	if symbol == "π" {
+		return strings.ReplaceAll(expr, "π", value)
+	}
+	// \b 匹配单词边界
+	pattern := fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(symbol))
+	re := regexp.MustCompile(pattern)
+	return re.ReplaceAllString(expr, value)
+}
+
+// 替换幂运算符 ^ 为 pow(x,y)
+func replacePower(expr string) string {
+	// 用正则匹配形如 a^b 的表达式，替换为 pow(a,b)
+	// 只处理简单数字和括号表达式
+	pattern := `([0-9.]+|\([^)]+\))\^([0-9.]+|\([^)]+\))`
+	re := regexp.MustCompile(pattern)
+	return re.ReplaceAllStringFunc(expr, func(m string) string {
+		parts := strings.Split(m, "^")
+		if len(parts) == 2 {
+			return fmt.Sprintf("pow(%s,%s)", parts[0], parts[1])
+		}
+		return m
+	})
 }
 
 func (s *CalcState) OnBackspace() {
@@ -385,7 +446,7 @@ func (s *CalcState) OnAdvancedTap(op string) {
 		//s.Result.Set("0")
 		return
 	}
-	
+
 	// 实时预览
 	res := s.Calculate(newEq)
 	if res != "" {
@@ -414,6 +475,9 @@ func (s *CalcState) OnToggle2nd() {
 
 // 最后一个字符为运算符时，删除它
 func checkLastOperator(equation string) string {
+	if len(equation) == 0 {
+		return equation
+	}
 	operators := "+-×÷"
 	lastChar := equation[len(equation)-1:]
 	if strings.ContainsAny(lastChar, operators) {

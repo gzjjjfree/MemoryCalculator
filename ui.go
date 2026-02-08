@@ -120,20 +120,24 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 		isBold, _ := state.IsResultMode.Get()
 		lblResult.TextStyle = fyne.TextStyle{Bold: isBold}
 
-		if isBold {
-			lblResult.SizeName = BigFont
-		} else {
-			lblResult.SizeName = MediumFont
-		}
-
 		text, _ := state.Display.Get()
 
-		targetStyle, changeText, isFinal := updateFontSizeBasedOnWidth(text, richInput)
+		actualW = richInput.Size().Width - theme.Padding()*4
+		changeText, isFinal := updateFontSizeBasedOnWidth(text, richInput)
+
+		if isBold {
+			labelFontSize = 42 // 当 isBold=true（结果模式）时设为 42
+			richInputFontSize = 18
+		} else {
+			labelFontSize = 18 // 当 isBold=false（输入模式）时设为 18
+		}
+		lblResult.SizeName = LabelFont
 
 		stateMutex.Lock()
 		if isFinal {
 			isListener = false
 			state.Display.Set(changeText)
+			isListener = true
 		}
 		stateMutex.Unlock()
 
@@ -142,9 +146,9 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 			&widget.TextSegment{
 				Text: changeText,
 				Style: widget.RichTextStyle{
-					TextStyle: fyne.TextStyle{Bold: !isBold}, // 按你的逻辑：非结果模式时加粗
+					TextStyle: fyne.TextStyle{Bold: !isBold}, // 非结果模式时加粗
 					// 使用 Fyne 定义的 SizeName
-					SizeName: targetStyle,
+					SizeName: RichInputFont,
 					// 设置向右对齐
 					Alignment: fyne.TextAlignTrailing,
 				},
@@ -189,9 +193,6 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 			if isListener {
 				refreshRichInput()
 			}
-			stateMutex.Lock()
-			isListener = true
-			stateMutex.Unlock()
 		}))
 
 		// --- 监听模式变化 (OnEqual 动作会触发这里) ---
@@ -236,11 +237,11 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 
 	//content := container.NewGridWithRows(2, displayArea, keypadContainer)
 	content := container.New(&ratioLayout{ratio: 0.47}, displayArea, keypadContainer)
-	
+
 	// 创建一个透明的矩形作为底部的“垫片”，高度设置为 20
 	bottomSpacer := canvas.NewRectangle(color.Transparent)
 	bottomSpacer.SetMinSize(fyne.NewSize(0, 7))
-	
+
 	// 使用 Border 布局，底部（Bottom）放垫片，中间（Center）放你的按钮或计算器面板
 	return container.NewBorder(nil, bottomSpacer, nil, nil, content)
 }
@@ -255,10 +256,22 @@ func makeBtn(text string, icon fyne.Resource, style int, action func()) fyne.Can
 		b = widget.NewButton(text, action)
 	}
 
-	customTheme := &myTheme{Theme: theme.DefaultTheme(), textSize: 30}
+	colorFont := color.Gray16{Y: 0}
+	colorBackground := color.NRGBA{R: 242, G: 242, B: 242, A: 255}
+	if text >= "0" && text <= "9" && text != "1/x" && text != "2nd" {
+		colorFont = color.Gray16{Y: 32768}
+	}
+	if text == "+" || text == "-" || text == "×" || text == "÷" || text == "xʸ" || text == "x!" ||
+		text == "(" || text == "1/x" || text == ")" || text == "π" || text == "2nd" {
+		colorBackground = color.NRGBA{R: 220, G: 235, B: 255, A: 255} // 淡蓝色背景
+	}
+	customTheme := &myTheme{Theme: theme.DefaultTheme(), textSize: 30, colorFont: colorFont, colorBackground: colorBackground}
+	//customTheme := &myTheme{Theme: theme.DefaultTheme(), textSize: 30}
 	container.NewThemeOverride(b, customTheme)
 
 	switch style {
+	case 0:
+		b.Importance = widget.HighImportance
 	case 1:
 		b.Importance = widget.HighImportance
 	case 2:
@@ -274,10 +287,14 @@ func makeBtn(text string, icon fyne.Resource, style int, action func()) fyne.Can
 func createConverterGrid(state *CalcState) fyne.CanvasObject {
 	var degBtn *widget.Button
 
+	colorBackground := color.NRGBA{R: 220, G: 235, B: 255, A: 255} // 淡蓝色背景
+	customTheme := &myTheme{Theme: theme.DefaultTheme(), textSize: 30, colorBackground: colorBackground}
+
 	// 使用一个特殊的构造逻辑或直接创建，以便拿到指针
 	// 我们直接写一个闭包来生成这个特定按钮
 	degBtn = widget.NewButton("DEG", state.OnDegToRad)
 	degBtn.Importance = widget.HighImportance
+	container.NewThemeOverride(degBtn, customTheme)
 	// 将其包装进你想要的容器格式
 	degBtnObj := container.NewStack(degBtn)
 
@@ -299,6 +316,7 @@ func createConverterGrid(state *CalcState) fyne.CanvasObject {
 		btn := widget.NewButton(id, func() { state.OnAdvancedTap(id) })
 		toggleButtons[id] = btn // 存入引用
 
+		container.NewThemeOverride(btn, customTheme)
 		// 设置样式（同makeBtn 逻辑）
 		if style == 1 {
 			btn.Importance = widget.HighImportance
@@ -347,7 +365,7 @@ func createConverterGrid(state *CalcState) fyne.CanvasObject {
 		makeToggleBtn("√x", 1),
 		makeBtn("C", nil, 2, state.OnClear),
 		makeBtn("⌫", nil, 0, state.OnBackspace),
-		makeBtn("%", nil, 0, func() {}),
+		makeBtn("%", nil, 0, func() { state.OnTap("%") }),
 		makeBtn("÷", nil, 1, func() { state.OnTap("÷") }),
 
 		makeBtn("x!", nil, 1, func() { state.OnAdvancedTap("x!") }),
@@ -439,7 +457,7 @@ func (t *allHistoryClickable) Tapped(_ *fyne.PointEvent) {
 
 func newAllHistoryClickable() *allHistoryClickable {
 	t := &allHistoryClickable{}
-	
+
 	t.ExtendBaseWidget(t) // 必须在这里扩展
 	// 关键：触发内部初始化，确保 MinSize 计算正常
 	t.Segments = []widget.RichTextSegment{}
@@ -448,18 +466,18 @@ func newAllHistoryClickable() *allHistoryClickable {
 }
 
 type ratioLayout struct {
-    ratio float32 // 上部占比，如 0.4
+	ratio float32 // 上部占比，如 0.4
 }
 
 func (r *ratioLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
-    topHeight := size.Height * r.ratio
-    objects[0].Resize(fyne.NewSize(size.Width, topHeight))
-    objects[0].Move(fyne.NewPos(0, 0))
+	topHeight := size.Height * r.ratio
+	objects[0].Resize(fyne.NewSize(size.Width, topHeight))
+	objects[0].Move(fyne.NewPos(0, 0))
 
-    objects[1].Resize(fyne.NewSize(size.Width, size.Height-topHeight))
-    objects[1].Move(fyne.NewPos(0, topHeight))
+	objects[1].Resize(fyne.NewSize(size.Width, size.Height-topHeight))
+	objects[1].Move(fyne.NewPos(0, topHeight))
 }
 
 func (r *ratioLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
-    return fyne.NewSize(100, 100) // 设置一个基础最小尺寸
+	return fyne.NewSize(100, 100) // 设置一个基础最小尺寸
 }

@@ -7,18 +7,19 @@ import (
 	"fyne.io/fyne/v2/theme"
 )
 
+var state *CalcState
 func main() {
 	myApp := app.NewWithID("com.gzjjj.memorycalculator")
 	myApp.Settings().SetTheme(&myTheme{Theme: theme.DefaultTheme(), textSize: 24})
 
 	win := myApp.NewWindow("计算器")
 
-	state := NewCalcState()
+	state = NewCalcState()
 	ui := CreateUI(state)
 
 	win.SetContent(container.NewPadded(ui))
 	//win.SetContent(ui)
 	win.Resize(fyne.NewSize(360, 640))
 
-	win.ShowAndRun()
+	win.ShowAndRun()	
 }
