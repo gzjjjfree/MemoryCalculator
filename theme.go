@@ -23,6 +23,8 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 		return m.colorBackground // color.NRGBA{R: 220, G: 235, B: 255, A: 255} // 淡蓝色背景
 	case theme.ColorNameScrollBar:
 		return color.Transparent // 让滚动条透明
+	case theme.ColorNameShadow:
+		return color.Transparent // 让滚动框上下边透明
 	default:
 		return theme.DefaultTheme().Color(name, variant)
 	}
