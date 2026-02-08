@@ -262,7 +262,7 @@ func makeBtn(text string, icon fyne.Resource, style int, action func()) fyne.Can
 		colorFont = color.Gray16{Y: 32768}
 	}
 	if text == "+" || text == "-" || text == "×" || text == "÷" || text == "xʸ" || text == "x!" ||
-		text == "(" || text == "1/x" || text == ")" || text == "π" || text == "2nd" {
+		text == "(" || text == "1/x" || text == ")" || text == "π" || text == "2nd" || text == "e" {
 		colorBackground = color.NRGBA{R: 220, G: 235, B: 255, A: 255} // 淡蓝色背景
 	}
 	customTheme := &myTheme{Theme: theme.DefaultTheme(), textSize: 30, colorFont: colorFont, colorBackground: colorBackground}
@@ -316,6 +316,8 @@ func createConverterGrid(state *CalcState) fyne.CanvasObject {
 		btn := widget.NewButton(id, func() { state.OnAdvancedTap(id) })
 		toggleButtons[id] = btn // 存入引用
 
+		colorBackground := color.NRGBA{R: 220, G: 235, B: 255, A: 255} // 淡蓝色背景
+		customTheme := &myTheme{Theme: theme.DefaultTheme(), textSize: 30, colorBackground: colorBackground}
 		container.NewThemeOverride(btn, customTheme)
 		// 设置样式（同makeBtn 逻辑）
 		if style == 1 {

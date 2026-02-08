@@ -205,13 +205,26 @@ jobs:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
 
+      - name: Organize and Rename Assets
+        run: |
+          # 1. 准备发布目录
+          mkdir -p release_assets
+
+          # 2. 处理 Docker 版 (精简版 10MB)
+          # 我们给它一个非常明确的名字
+          cp docker-build-apk/MemoryCalculator.apk release_assets/MemoryCalculator_arm64_v8a_Small.apk
+
+          # 3. 处理 Native 版 (通用版 23MB)
+          # 如果你依然想保留它作为备选
+          cp android-apk/MemoryCalculator_Native.apk release_assets/MemoryCalculator_Universal_Compatible.apk
+          cp android-apk/MemoryCalculator_Native.aab release_assets/MemoryCalculator_AppBundle.aab
+
+          # 4. 处理 macOS 版
+          cp macos-app/*.zip release_assets/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            android-apk/*.apk
-            android-apk/*.aab
-            macos-app/*.zip
-            docker-build-apk/MemoryCalculator.apk
+          files: release_assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
