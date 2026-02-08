@@ -87,12 +87,11 @@ jobs:
             ./bundletool build-apks --bundle=MemoryCalculator.aab --output=MemoryCalculator.apks --mode=universal --ks=release.keystore --ks-pass=pass:"$K_PASS" --ks-key-alias="$K_ALIAS" --key-pass=pass:"$K_PASS"
 
             # 从 .apks 中提取出真正的 .apk 文件
-            unzip -p MemoryCalculator.apks universal.apk > MemoryCalculator.apk
+            unzip -p MemoryCalculator.apks universal.apk > MemoryCalculator_Native.apk
 
             echo "Success! MemoryCalculator.apk has been generated."
 
             # 重命名 APK 和 AAB，增加 _Native 后缀
-            mv MemoryCalculator.apk MemoryCalculator_Native.apk
             mv MemoryCalculator.aab MemoryCalculator_Native.aab
 
             echo "Success! Native artifacts renamed."
@@ -195,7 +194,7 @@ jobs:
         with:
           name: docker-build-apk
           # fyne-cross 默认会将产物放在这个深度目录下
-          path: fyne-cross/dist/android-arm64/*.apk
+          path: fyne-cross/dist/android-arm64/MemoryCalculator.apk
 
   create-release:
     needs: [build-android, build-macos, build-docker]
@@ -213,6 +212,6 @@ jobs:
             android-apk/*.apk
             android-apk/*.aab
             macos-app/*.zip
-            docker-build-apk/*.apk
+            docker-build-apk/MemoryCalculator.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
