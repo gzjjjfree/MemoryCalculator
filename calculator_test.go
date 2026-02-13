@@ -13,7 +13,7 @@ func TestCalculate(t *testing.T) {
 	defer testApp.Quit()
 
 	// 此时调用 NewCalcState 就不会报错了
-	state = NewCalcState()
+	state = NewCalcState(testApp.NewWindow("Test Window"))
 
 	tests := []struct {
 		name     string

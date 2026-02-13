@@ -5,26 +5,38 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 	"github.com/Knetic/govaluate"
 )
 
 type CalcState struct {
+	win fyne.Window
+
 	Display     binding.String
 	Result      binding.String
 	History     binding.String
-	IsNewNumber bool
-	// 用于控制 UI 字体是否加粗的绑定
-	IsResultMode binding.Bool // true 代表显示结果（结果粗），false 代表输入中（输入粗
+	IsNewNumber bool // 是否正在输入一个新的数字（而不是继续在当前数字后面输入）
 
-	IsCalcBig binding.Bool
-	IsRadian  binding.Bool // true 为弧度模式，false 为角度模式
-	Is2ndMode binding.Bool
+	IsResultMode binding.Bool // true 代表显示结果（结果粗），false 代表输入中（输入粗)
+	IsCalcBig    binding.Bool // 是否使用高级计算布局
+	IsRadian     binding.Bool // true 为弧度模式，false 为角度模式
+	Is2ndMode    binding.Bool
+
+	isInterceptingForScore bool            // 是否正在拦截输入
+	onScoreInput           func(string)    // 拦截时的回调函数
+	scoreOverlay           *fyne.Container // 新增：平摊功能的 UI 容器
 }
 
-func NewCalcState() *CalcState {
+func NewCalcState(w fyne.Window) *CalcState {
 	s := &CalcState{
 		Display:      binding.NewString(),
 		Result:       binding.NewString(),
@@ -34,6 +46,7 @@ func NewCalcState() *CalcState {
 		IsCalcBig:    binding.NewBool(),
 		IsRadian:     binding.NewBool(),
 		Is2ndMode:    binding.NewBool(),
+		win:          w,
 	}
 	s.Display.Set("")
 	s.Result.Set("0")
@@ -45,6 +58,20 @@ func NewCalcState() *CalcState {
 }
 
 func (s *CalcState) OnTap(char string) {
+	// 如果处于拦截模式，将按键传给临时函数，不执行计算逻辑
+	if s.isInterceptingForScore && s.onScoreInput != nil {
+		s.onScoreInput(char)
+		return
+	}
+
+	isResultMode, _ := s.IsResultMode.Get()
+
+	// 如果当前是结果模式，点击 % 则运行特定函数, 不执行计算逻辑
+	if char == "%" && isResultMode {
+		s.displayScore()
+		return
+	}
+
 	current, _ := s.Display.Get()
 
 	// 防止第一个字符就是运算符 (除了减号表示负数)
@@ -142,8 +169,8 @@ func (s *CalcState) Calculate(equation string) string {
 	// 替换 × ÷
 	exprStr = strings.ReplaceAll(exprStr, "×", "*")
 	exprStr = strings.ReplaceAll(exprStr, "÷", "/")
-	exprStr = strings.ReplaceAll(exprStr, "%", "*0.01")     // 修复百分号
-	exprStr = strings.ReplaceAll(exprStr, "1/x(", "inv(")  // 修复倒数函数
+	exprStr = strings.ReplaceAll(exprStr, "%", "*0.01")   // 修复百分号
+	exprStr = strings.ReplaceAll(exprStr, "1/x(", "inv(") // 修复倒数函数
 	// 替换 π（仅独立常量，不在函数名中）
 	exprStr = replaceConstant(exprStr, "π", fmt.Sprintf("%f", math.Pi))
 	// 替换 e（仅独立常量，不在函数名、exp等中）
@@ -484,4 +511,121 @@ func checkLastOperator(equation string) string {
 		equation = equation[:len(equation)-1]
 	}
 	return equation
+}
+
+func (s *CalcState) displayScore() {
+	result, _ := s.Result.Get()
+	scoreStr := strings.TrimPrefix(result, "= ")
+	scoreFloat, _ := strconv.ParseFloat(scoreStr, 64)
+	totalScore := int(scoreFloat)
+
+	if totalScore <= 0 || totalScore >= 600 {
+		return
+	}
+
+	peopleInput := binding.NewString()
+	peopleInput.Set("")
+
+	displayLabel := widget.NewLabelWithData(peopleInput)
+	displayLabel.Alignment = fyne.TextAlignCenter
+	displayLabel.TextStyle = fyne.TextStyle{Bold: true}
+
+	// 构造提示框的小窗口
+	title := widget.NewLabel("请输入平摊人数")
+	title.Alignment = fyne.TextAlignCenter
+
+	// 按钮逻辑
+	btnCancel := widget.NewButton("取消", func() {
+		s.isInterceptingForScore = false
+		s.scoreOverlay.Hide() // 隐藏覆盖层
+	})
+	btnConfirm := widget.NewButton("计算", func() {
+		val, _ := peopleInput.Get()
+
+		// 基础校验：空输入处理
+		if val == "" {
+			s.Result.Set("请输入人数")
+			return
+		}
+
+		num, err := strconv.Atoi(val)
+
+		// 逻辑校验：人数必须大于 0
+		if err != nil || num <= 0 {
+			s.Result.Set("人数无效")
+			// 如果输入无效，不关闭拦截，让用户修改
+			peopleInput.Set("")
+			return
+		}
+
+		s.isInterceptingForScore = false // 确认计算，解除拦截
+
+		base := totalScore / num // 基础分（向下取整）
+		rem := totalScore % num  // 余数
+
+		var finalStr string
+
+		// 情况 A：正好整除（例如 10分/2人 或 10分/1人）
+		if rem == 0 {
+			finalStr = fmt.Sprintf("总分:%d | %d人%d分  ", totalScore, num, base)
+		} else {
+			// 情况 B：存在余数（余数 rem 个人多拿 1 分，剩下的人拿基础分）
+			peopleWithMore := rem
+			peopleWithBase := num - rem
+
+			// 格式化输出：总分:10  1人4分, 2人3分
+			finalStr = fmt.Sprintf("总分:%d | %d人%d分, %d人%d分  ",
+				totalScore, peopleWithMore, base+1, peopleWithBase, base)
+		}
+
+		// 更新 UI 并隐藏覆盖层
+		s.Result.Set(finalStr)
+		s.IsResultMode.Set(false) // 切换模式，防止逻辑混乱
+		s.scoreOverlay.Hide()
+	})
+
+	// 组合成一个小卡片
+	cardContent := container.NewVBox(
+		title,
+		container.NewPadded(displayLabel),
+		container.NewHBox(layout.NewSpacer(), btnCancel, btnConfirm, layout.NewSpacer()),
+	)
+
+	// 给卡片加个背景，防止看不清文字
+	cardBackground := canvas.NewRectangle(theme.BackgroundColor())
+	cardBackground.SetMinSize(fyne.NewSize(360, 150))
+
+	card := container.NewStack(cardBackground, cardContent)
+
+	// 关键布局：将卡片放在顶部，并让下方留空
+	// 这样上方 1/3 是提示框，下方 2/3 的计算器按钮完全没有被任何东西覆盖
+	s.scoreOverlay.Objects = []fyne.CanvasObject{
+		container.NewVBox(
+			layout.NewSpacer(),
+			container.NewCenter(card),
+			layout.NewSpacer(),
+			layout.NewSpacer(), // 增加下方的 Spacer 确保下方键盘区全空
+			layout.NewSpacer(), 
+			layout.NewSpacer(),
+			layout.NewSpacer(),
+		),
+	}
+	s.scoreOverlay.Refresh()
+	s.scoreOverlay.Show()
+
+	// 接管输入
+	s.isInterceptingForScore = true
+	s.onScoreInput = func(char string) {
+		current, _ := peopleInput.Get()
+		if char >= "0" && char <= "9" {
+			peopleInput.Set(current + char)
+		} else if char == "AC" || char == "C" {
+			if current == "" {
+				s.isInterceptingForScore = false
+				s.scoreOverlay.Hide()
+			} else {
+				peopleInput.Set("")
+			}
+		}
+	}
 }

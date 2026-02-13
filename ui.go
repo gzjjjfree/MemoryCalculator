@@ -126,7 +126,14 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 		changeText, isFinal := updateFontSizeBasedOnWidth(text, richInput)
 
 		if isBold {
-			labelFontSize = 42 // 当 isBold=true（结果模式）时设为 42
+			textresult, _ := state.Result.Get()
+			fontSizes := []float32{42, 40, 38, 36, 34, 32, 30, 28, 26, 24, 22, 20, 18}
+			for _, size := range fontSizes {
+				if measureWidth(textresult, size) <= actualW {
+					labelFontSize = size
+					break
+				}
+			}
 			richInputFontSize = 18
 		} else {
 			labelFontSize = 18 // 当 isBold=false（输入模式）时设为 18
@@ -402,7 +409,7 @@ func createCalculatorGrid(state *CalcState) fyne.CanvasObject {
 	grid := container.NewGridWithColumns(4,
 		makeBtn("C", nil, 2, state.OnClear),
 		makeBtn("⌫", nil, 0, state.OnBackspace),
-		makeBtn("%", nil, 0, func() {}),
+		makeBtn("%", nil, 0, func() {  state.OnTap("%") }),
 		makeBtn("÷", nil, 3, func() { state.OnTap("÷") }),
 
 		makeBtn("7", nil, 0, func() { state.OnTap("7") }),
