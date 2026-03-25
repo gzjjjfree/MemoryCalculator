@@ -13,18 +13,23 @@ type myTheme struct {
 	textSize  float32
 	colorFont color.Gray16
 	colorBackground color.NRGBA
+	colorNameShadow color.Alpha16	
 }
 
 func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
 	switch name {
-	case theme.ColorNameForegroundOnPrimary:		
+	case theme.ColorNameForegroundOnPrimary:	// 主要颜色上的前景色，通常用于按钮文字等	
 		return m.colorFont
-	case theme.ColorNamePrimary:
+
+	case theme.ColorNamePrimary: // 主要颜色，通常用于按钮背景等
 		return m.colorBackground // color.NRGBA{R: 220, G: 235, B: 255, A: 255} // 淡蓝色背景
-	case theme.ColorNameScrollBar:
-		return color.Transparent // 让滚动条透明
-	case theme.ColorNameShadow:
-		return color.Transparent // 让滚动框上下边透明
+
+	case theme.ColorNameScrollBar: // 滚动条颜色
+		return m.colorNameShadow // 让滚动条透明
+
+	case theme.ColorNameShadow:		// 滚动框上下边的阴影颜色
+		return m.colorNameShadow // color.Alpha16{0}  // color.Transparent // 让滚动框上下边透明
+	
 	default:
 		return theme.DefaultTheme().Color(name, variant)
 	}

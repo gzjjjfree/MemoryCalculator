@@ -121,7 +121,7 @@ func (s *CalcState) OnClear() {
 	if s.IsNewNumber == false && current != "0" && current != "" {
 		current = checkLastOperator(current)
 		s.History.Set(history + "\n" + current + " = " + finalRes)
-		s.appendToLocalFile(current) // 自动保存
+		s.appendToLocalFile(current + " = " + finalRes) // 自动保存
 	}
 
 	s.Display.Set("")
@@ -390,11 +390,13 @@ func (s *CalcState) OnBackspace() {
 		return
 	}
 
-	// --- 关键修复：使用 rune 处理多字节字符 ---
-	runes := []rune(current)
+	// 使用 rune 处理多字节字符
+    runes := []rune(current)
+	
 	if len(runes) <= 1 {
 		s.Display.Set("")
 		s.Result.Set("= 0")
+		isChangeRow = false // 重置换行状态
 	} else {
 		// 删掉最后一个字符
 		newEq := string(runes[:len(runes)-1])
@@ -406,11 +408,15 @@ func (s *CalcState) OnBackspace() {
 			}
 		}
 
+		// 清理掉最后一个换行符
 		lastNewlineIdx := strings.LastIndexAny(newEq, "\n")
 		if lastNewlineIdx != -1 {
 			newEq = newEq[:lastNewlineIdx] + newEq[lastNewlineIdx+1:]
 		}
+		
+		stateMutex.Lock()
 		isChangeRow = false
+		stateMutex.Unlock()
 		s.Display.Set(newEq)
 
 		// 更新实时预览
@@ -588,7 +594,7 @@ func (s *CalcState) displayScore() {
 	cardContent := container.NewVBox(
 		title,
 		container.NewPadded(displayLabel),
-		container.NewHBox(layout.NewSpacer(), btnCancel, btnConfirm, layout.NewSpacer()),
+		container.NewHBox(layout.NewSpacer(), layout.NewSpacer(), btnCancel, layout.NewSpacer(), btnConfirm, layout.NewSpacer(), layout.NewSpacer()),
 	)
 
 	// 给卡片加个背景，防止看不清文字

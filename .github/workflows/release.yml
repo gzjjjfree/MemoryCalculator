@@ -50,7 +50,7 @@ jobs:
           # 验证 bundletool 是否可用
           ./bundletool version
 
-          # 1. 还原 Keystore
+          # 1. 还原 Keystore # 上传服务器前命令 base64 -w 0 upload-keystore.jks
           echo "$K_BASE64" | base64 -d > release.keystore
 
           # 如果 RAW_VERSION 看起来不像版本号（比如是 main 或 master），则设为 0.0.1

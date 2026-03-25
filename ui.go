@@ -29,6 +29,11 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 	richHistory := newAllHistoryClickable()
 	richHistory.Wrapping = fyne.TextWrapBreak
 
+	// 修改默认主题，去除上下边框阴影
+	colorNameShadow := color.Transparent  // color.Transparent
+	customTheme := &myTheme{Theme: theme.DefaultTheme(), colorNameShadow: colorNameShadow}
+	container.NewThemeOverride(richHistory, customTheme)
+
 	// 定义输入框
 	richInput := widget.NewRichText()
 	// 设置对齐方式（通过段落样式）

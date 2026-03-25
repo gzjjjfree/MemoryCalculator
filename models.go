@@ -10,7 +10,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var isChangeRow bool = false
+var isChangeRow bool = false // 是否需要换行
 var stateMutex sync.Mutex
 var richInputFontSize float32 = 42
 var labelFontSize float32 = 18
@@ -33,12 +33,42 @@ func updateFontSizeBasedOnWidth(text string, richInput *widget.RichText) (string
 		lastLine := changeText[searchStart:]
 		if measureWidth(lastLine, 18) > actualW {
 			operators := "+-×÷*/"
-			lastOpIdxInLine := strings.LastIndexAny(lastLine, operators)
-			if lastOpIdxInLine != -1 {
-				absoluteOpIdx := searchStart + lastOpIdxInLine
-				changeText = changeText[:absoluteOpIdx] + "\n" + changeText[absoluteOpIdx:]
+
+			// 初始搜索位置：当前行的末尾
+			searchPos := len(lastLine)
+			foundIdx := -1
+
+			for {
+				// 在当前搜索范围 [0:searchPos] 内找最后一个运算符
+				idx := strings.LastIndexAny(lastLine[:searchPos], operators)
+
+				if idx == -1 {
+					break // 没找到任何运算符，跳出循环
+				}
+
+				// 检查如果在此处换行，该行（从开头到该符号前）是否能放下
+				// 注意：这里检查的是从这一行起始到该符号位置的宽度
+				if measureWidth(lastLine[:idx], 18) <= actualW {
+					foundIdx = idx
+					break // 找到了最靠右且不超宽的符号，退出循环
+				}
+
+				// 如果该符号处依然超宽，继续向左搜索
+				searchPos = idx
 			}
-			return changeText, true
+
+			if foundIdx != -1 {
+				// 找到合适的换行点
+				absoluteOpIdx := searchStart + foundIdx
+				changeText = changeText[:absoluteOpIdx] + "\n" + changeText[absoluteOpIdx:]
+				return changeText, true
+			} else {
+				// 【保底逻辑】如果整行都没有符合条件的符号（例如全是长数字）
+				// 为了防止显示溢出，只能在当前行最后一个字符强行换行
+				absoluteOpIdx := searchStart + len(lastLine) - 1
+				changeText = changeText[:absoluteOpIdx] + "\n" + changeText[absoluteOpIdx:]
+				return changeText, true
+			}
 		}
 		return text, false
 	}
@@ -50,12 +80,11 @@ func updateFontSizeBasedOnWidth(text string, richInput *widget.RichText) (string
 			return text, false
 		}
 	}
-	if richInputFontSize == 18 {
-		return text, false
-	}
+	richInputFontSize = 18 // 降到最低
 	stateMutex.Lock()
 	isChangeRow = true
 	stateMutex.Unlock()
+	// 此时递归进入 isChangeRow 分支执行符号换行
 	return updateFontSizeBasedOnWidth(text, richInput)
 }
 
