@@ -114,6 +114,12 @@ func (s *CalcState) OnTap(char string) {
 }
 
 func (s *CalcState) OnClear() {
+	// 如果处于拦截模式，将按键传给临时函数，不执行计算逻辑
+	if s.isInterceptingForScore && s.onScoreInput != nil {
+		s.onScoreInput("C")
+		return
+	}
+
 	current, _ := s.Display.Get()
 	history, _ := s.History.Get()
 	finalRes := s.Calculate(current)
@@ -133,6 +139,12 @@ func (s *CalcState) OnClear() {
 }
 
 func (s *CalcState) OnEqual() {
+	// 如果处于拦截模式，将按键传给临时函数，不执行计算逻辑
+	if s.isInterceptingForScore && s.onScoreInput != nil {
+		s.onScoreInput("=")
+		return
+	}
+
 	history, _ := s.History.Get()
 	current, _ := s.Display.Get()
 
@@ -377,6 +389,12 @@ func replacePower(expr string) string {
 }
 
 func (s *CalcState) OnBackspace() {
+	// 如果处于拦截模式，将按键传给临时函数，不执行计算逻辑
+	if s.isInterceptingForScore && s.onScoreInput != nil {
+		s.onScoreInput("⌫")
+		return
+	}
+
 	// 如果当前处于结果显示模式，退格键通常应该直接清空结果回到输入模式
 	isResult, _ := s.IsResultMode.Get()
 	if isResult {
@@ -391,8 +409,8 @@ func (s *CalcState) OnBackspace() {
 	}
 
 	// 使用 rune 处理多字节字符
-    runes := []rune(current)
-	
+	runes := []rune(current)
+
 	if len(runes) <= 1 {
 		s.Display.Set("")
 		s.Result.Set("= 0")
@@ -413,7 +431,7 @@ func (s *CalcState) OnBackspace() {
 		if lastNewlineIdx != -1 {
 			newEq = newEq[:lastNewlineIdx] + newEq[lastNewlineIdx+1:]
 		}
-		
+
 		stateMutex.Lock()
 		isChangeRow = false
 		stateMutex.Unlock()
@@ -520,71 +538,71 @@ func checkLastOperator(equation string) string {
 }
 
 func (s *CalcState) displayScore() {
-    result, _ := s.Result.Get()
-    scoreStr := strings.TrimPrefix(result, "= ")
-    scoreFloat, _ := strconv.ParseFloat(scoreStr, 64)
-    totalScore := int(scoreFloat)
+	result, _ := s.Result.Get()
+	scoreStr := strings.TrimPrefix(result, "= ")
+	scoreFloat, _ := strconv.ParseFloat(scoreStr, 64)
+	totalScore := int(scoreFloat)
 
-    if totalScore <= 0 || totalScore >= 600 {
-        return
-    }
+	if totalScore <= 0 || totalScore >= 600 {
+		return
+	}
 
-    peopleInput := binding.NewString()
-    peopleInput.Set("")
+	peopleInput := binding.NewString()
+	peopleInput.Set("")
 
-    // 1. 定义核心计算逻辑 (抽取出来以便复用)
-    updatePreview := func() {
-        val, _ := peopleInput.Get()
-        if val == "" {
-            s.Result.Set(fmt.Sprintf("总分:%d | 请输入人数", totalScore))
+	// 1. 定义核心计算逻辑 (抽取出来以便复用)
+	updatePreview := func() {
+		val, _ := peopleInput.Get()
+		if val == "" {
+			s.Result.Set(fmt.Sprintf("总分:%d | 请输入人数", totalScore))
 			s.IsResultMode.Set(false)
-            return
-        }
+			return
+		}
 
-        num, err := strconv.Atoi(val)
-        if err != nil || num <= 0 {
-            s.Result.Set("人数无效")
+		num, err := strconv.Atoi(val)
+		if err != nil || num <= 0 {
+			s.Result.Set("人数无效")
 			s.IsResultMode.Set(false)
-            return
-        }
+			return
+		}
 
-        base := totalScore / num
-        rem := totalScore % num
-        var finalStr string
-        if rem == 0 {
-            finalStr = fmt.Sprintf("总分:%d | %d人%d分  ", totalScore, num, base)
-        } else {
-            finalStr = fmt.Sprintf("总分:%d | %d人%d分, %d人%d分  ",
-                totalScore, rem, base+1, num-rem, base)
-        }
-        s.Result.Set(finalStr)
+		base := totalScore / num
+		rem := totalScore % num
+		var finalStr string
+		if rem == 0 {
+			finalStr = fmt.Sprintf("总分:%d | %d人%d分  ", totalScore, num, base)
+		} else {
+			finalStr = fmt.Sprintf("总分:%d | %d人%d分, %d人%d分  ",
+				totalScore, rem, base+1, num-rem, base)
+		}
+		s.Result.Set(finalStr)
 		s.IsResultMode.Set(false)
-    }
+	}
 
-    // 2. 监听输入变化实现实时预览
-    peopleInput.AddListener(binding.NewDataListener(func() {
-        updatePreview()
-    }))
+	// 2. 监听输入变化实现实时预览
+	peopleInput.AddListener(binding.NewDataListener(func() {
+		updatePreview()
+	}))
 
-    displayLabel := widget.NewLabelWithData(peopleInput)
-    displayLabel.Alignment = fyne.TextAlignCenter
-    displayLabel.TextStyle = fyne.TextStyle{Bold: true}
+	displayLabel := widget.NewLabelWithData(peopleInput)
+	displayLabel.Alignment = fyne.TextAlignCenter
+	displayLabel.TextStyle = fyne.TextStyle{Bold: true}
 
-    title := widget.NewLabel("请输入平摊人数")
-    title.Alignment = fyne.TextAlignCenter
+	title := widget.NewLabel("请输入平摊人数")
+	title.Alignment = fyne.TextAlignCenter
 
-    // 3. 按钮逻辑改造
-    btnCancel := widget.NewButton("返回", func() {
-        s.isInterceptingForScore = false
-        s.scoreOverlay.Hide()
-        // 返回时恢复原始结果显示
-        s.Result.Set(result) 
-    })
+	// 3. 按钮逻辑改造
+	btnCancel := widget.NewButton("返回", func() {
+		s.isInterceptingForScore = false
+		s.scoreOverlay.Hide()
+		// 返回时恢复原始结果显示
+		s.Result.Set(result)
+	})
 
-    // 变更为重置按钮
-    btnReset := widget.NewButton("重置", func() {
-        peopleInput.Set("") // 清空输入，触发监听器更新预览
-    })
+	// 变更为重置按钮
+	btnReset := widget.NewButton("重置", func() {
+		peopleInput.Set("") // 清空输入，触发监听器更新预览
+	})
 
 	cardContent := container.NewVBox(
 		title,
@@ -592,40 +610,47 @@ func (s *CalcState) displayScore() {
 		container.NewHBox(layout.NewSpacer(), layout.NewSpacer(), btnCancel, layout.NewSpacer(), btnReset, layout.NewSpacer(), layout.NewSpacer()),
 	)
 
-    cardBackground := canvas.NewRectangle(theme.BackgroundColor())
-    cardBackground.SetMinSize(fyne.NewSize(360, 150))
-    card := container.NewStack(cardBackground, cardContent)
+	cardBackground := canvas.NewRectangle(theme.BackgroundColor())
+	cardBackground.SetMinSize(fyne.NewSize(360, 150))
+	card := container.NewStack(cardBackground, cardContent)
 
-    s.scoreOverlay.Objects = []fyne.CanvasObject{
-        container.NewVBox(
-            layout.NewSpacer(),
-            container.NewCenter(card),
-            layout.NewSpacer(),
-            layout.NewSpacer(),
-            layout.NewSpacer(),
-            layout.NewSpacer(),
-            layout.NewSpacer(),
-        ),
-    }
-    s.scoreOverlay.Refresh()
-    s.scoreOverlay.Show()
+	s.scoreOverlay.Objects = []fyne.CanvasObject{
+		container.NewVBox(
+			layout.NewSpacer(),
+			container.NewCenter(card),
+			layout.NewSpacer(),
+			layout.NewSpacer(),
+			layout.NewSpacer(),
+			layout.NewSpacer(),
+			layout.NewSpacer(),
+			layout.NewSpacer(),
+			layout.NewSpacer(),
+		),
+	}
+	s.scoreOverlay.Refresh()
+	s.scoreOverlay.Show()
 
-    s.isInterceptingForScore = true
-    s.onScoreInput = func(char string) {
-        current, _ := peopleInput.Get()
-        if char >= "0" && char <= "9" {
-            // 限制人数长度防止溢出
-            if len(current) < 3 {
-                peopleInput.Set(current + char)
-            }
-        } else if char == "AC" || char == "C" {
-            if current == "" {
-                s.isInterceptingForScore = false
-                s.scoreOverlay.Hide()
-                s.Result.Set(result)
-            } else {
-                peopleInput.Set("")
-            }
-        }
-    }
+	// 接管输入
+	s.isInterceptingForScore = true
+	s.onScoreInput = func(char string) {
+		current, _ := peopleInput.Get()
+		if char >= "0" && char <= "9" {
+			// 限制人数长度防止溢出
+			if len(current) < 3 {
+				peopleInput.Set(current + char)
+			}
+		} else if char == "C" {
+			s.isInterceptingForScore = false
+			s.scoreOverlay.Hide()
+			s.Result.Set(result)
+			s.IsResultMode.Set(false)
+		} else if char == "⌫" {
+			if current != "" {
+				runes := []rune(current)
+				// 截取掉最后一个字符
+				newVal := string(runes[:len(runes)-1])
+				peopleInput.Set(newVal)
+			}
+		}
+	}
 }
