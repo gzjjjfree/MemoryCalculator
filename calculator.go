@@ -520,118 +520,112 @@ func checkLastOperator(equation string) string {
 }
 
 func (s *CalcState) displayScore() {
-	result, _ := s.Result.Get()
-	scoreStr := strings.TrimPrefix(result, "= ")
-	scoreFloat, _ := strconv.ParseFloat(scoreStr, 64)
-	totalScore := int(scoreFloat)
+    result, _ := s.Result.Get()
+    scoreStr := strings.TrimPrefix(result, "= ")
+    scoreFloat, _ := strconv.ParseFloat(scoreStr, 64)
+    totalScore := int(scoreFloat)
 
-	if totalScore <= 0 || totalScore >= 600 {
-		return
-	}
+    if totalScore <= 0 || totalScore >= 600 {
+        return
+    }
 
-	peopleInput := binding.NewString()
-	peopleInput.Set("")
+    peopleInput := binding.NewString()
+    peopleInput.Set("")
 
-	displayLabel := widget.NewLabelWithData(peopleInput)
-	displayLabel.Alignment = fyne.TextAlignCenter
-	displayLabel.TextStyle = fyne.TextStyle{Bold: true}
+    // 1. 定义核心计算逻辑 (抽取出来以便复用)
+    updatePreview := func() {
+        val, _ := peopleInput.Get()
+        if val == "" {
+            s.Result.Set(fmt.Sprintf("总分:%d | 请输入人数", totalScore))
+			s.IsResultMode.Set(false)
+            return
+        }
 
-	// 构造提示框的小窗口
-	title := widget.NewLabel("请输入平摊人数")
-	title.Alignment = fyne.TextAlignCenter
+        num, err := strconv.Atoi(val)
+        if err != nil || num <= 0 {
+            s.Result.Set("人数无效")
+			s.IsResultMode.Set(false)
+            return
+        }
 
-	// 按钮逻辑
-	btnCancel := widget.NewButton("取消", func() {
-		s.isInterceptingForScore = false
-		s.scoreOverlay.Hide() // 隐藏覆盖层
-	})
-	btnConfirm := widget.NewButton("计算", func() {
-		val, _ := peopleInput.Get()
+        base := totalScore / num
+        rem := totalScore % num
+        var finalStr string
+        if rem == 0 {
+            finalStr = fmt.Sprintf("总分:%d | %d人%d分  ", totalScore, num, base)
+        } else {
+            finalStr = fmt.Sprintf("总分:%d | %d人%d分, %d人%d分  ",
+                totalScore, rem, base+1, num-rem, base)
+        }
+        s.Result.Set(finalStr)
+		s.IsResultMode.Set(false)
+    }
 
-		// 基础校验：空输入处理
-		if val == "" {
-			s.Result.Set("请输入人数")
-			return
-		}
+    // 2. 监听输入变化实现实时预览
+    peopleInput.AddListener(binding.NewDataListener(func() {
+        updatePreview()
+    }))
 
-		num, err := strconv.Atoi(val)
+    displayLabel := widget.NewLabelWithData(peopleInput)
+    displayLabel.Alignment = fyne.TextAlignCenter
+    displayLabel.TextStyle = fyne.TextStyle{Bold: true}
 
-		// 逻辑校验：人数必须大于 0
-		if err != nil || num <= 0 {
-			s.Result.Set("人数无效")
-			// 如果输入无效，不关闭拦截，让用户修改
-			peopleInput.Set("")
-			return
-		}
+    title := widget.NewLabel("请输入平摊人数")
+    title.Alignment = fyne.TextAlignCenter
 
-		s.isInterceptingForScore = false // 确认计算，解除拦截
+    // 3. 按钮逻辑改造
+    btnCancel := widget.NewButton("返回", func() {
+        s.isInterceptingForScore = false
+        s.scoreOverlay.Hide()
+        // 返回时恢复原始结果显示
+        s.Result.Set(result) 
+    })
 
-		base := totalScore / num // 基础分（向下取整）
-		rem := totalScore % num  // 余数
+    // 变更为重置按钮
+    btnReset := widget.NewButton("重置", func() {
+        peopleInput.Set("") // 清空输入，触发监听器更新预览
+    })
 
-		var finalStr string
-
-		// 情况 A：正好整除（例如 10分/2人 或 10分/1人）
-		if rem == 0 {
-			finalStr = fmt.Sprintf("总分:%d | %d人%d分  ", totalScore, num, base)
-		} else {
-			// 情况 B：存在余数（余数 rem 个人多拿 1 分，剩下的人拿基础分）
-			peopleWithMore := rem
-			peopleWithBase := num - rem
-
-			// 格式化输出：总分:10  1人4分, 2人3分
-			finalStr = fmt.Sprintf("总分:%d | %d人%d分, %d人%d分  ",
-				totalScore, peopleWithMore, base+1, peopleWithBase, base)
-		}
-
-		// 更新 UI 并隐藏覆盖层
-		s.Result.Set(finalStr)
-		s.IsResultMode.Set(false) // 切换模式，防止逻辑混乱
-		s.scoreOverlay.Hide()
-	})
-
-	// 组合成一个小卡片
 	cardContent := container.NewVBox(
 		title,
 		container.NewPadded(displayLabel),
-		container.NewHBox(layout.NewSpacer(), layout.NewSpacer(), btnCancel, layout.NewSpacer(), btnConfirm, layout.NewSpacer(), layout.NewSpacer()),
+		container.NewHBox(layout.NewSpacer(), layout.NewSpacer(), btnCancel, layout.NewSpacer(), btnReset, layout.NewSpacer(), layout.NewSpacer()),
 	)
 
-	// 给卡片加个背景，防止看不清文字
-	cardBackground := canvas.NewRectangle(theme.BackgroundColor())
-	cardBackground.SetMinSize(fyne.NewSize(360, 150))
+    cardBackground := canvas.NewRectangle(theme.BackgroundColor())
+    cardBackground.SetMinSize(fyne.NewSize(360, 150))
+    card := container.NewStack(cardBackground, cardContent)
 
-	card := container.NewStack(cardBackground, cardContent)
+    s.scoreOverlay.Objects = []fyne.CanvasObject{
+        container.NewVBox(
+            layout.NewSpacer(),
+            container.NewCenter(card),
+            layout.NewSpacer(),
+            layout.NewSpacer(),
+            layout.NewSpacer(),
+            layout.NewSpacer(),
+            layout.NewSpacer(),
+        ),
+    }
+    s.scoreOverlay.Refresh()
+    s.scoreOverlay.Show()
 
-	// 关键布局：将卡片放在顶部，并让下方留空
-	// 这样上方 1/3 是提示框，下方 2/3 的计算器按钮完全没有被任何东西覆盖
-	s.scoreOverlay.Objects = []fyne.CanvasObject{
-		container.NewVBox(
-			layout.NewSpacer(),
-			container.NewCenter(card),
-			layout.NewSpacer(),
-			layout.NewSpacer(), // 增加下方的 Spacer 确保下方键盘区全空
-			layout.NewSpacer(), 
-			layout.NewSpacer(),
-			layout.NewSpacer(),
-		),
-	}
-	s.scoreOverlay.Refresh()
-	s.scoreOverlay.Show()
-
-	// 接管输入
-	s.isInterceptingForScore = true
-	s.onScoreInput = func(char string) {
-		current, _ := peopleInput.Get()
-		if char >= "0" && char <= "9" {
-			peopleInput.Set(current + char)
-		} else if char == "AC" || char == "C" {
-			if current == "" {
-				s.isInterceptingForScore = false
-				s.scoreOverlay.Hide()
-			} else {
-				peopleInput.Set("")
-			}
-		}
-	}
+    s.isInterceptingForScore = true
+    s.onScoreInput = func(char string) {
+        current, _ := peopleInput.Get()
+        if char >= "0" && char <= "9" {
+            // 限制人数长度防止溢出
+            if len(current) < 3 {
+                peopleInput.Set(current + char)
+            }
+        } else if char == "AC" || char == "C" {
+            if current == "" {
+                s.isInterceptingForScore = false
+                s.scoreOverlay.Hide()
+                s.Result.Set(result)
+            } else {
+                peopleInput.Set("")
+            }
+        }
+    }
 }
