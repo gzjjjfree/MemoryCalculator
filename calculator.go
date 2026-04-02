@@ -21,9 +21,12 @@ import (
 type CalcState struct {
 	win fyne.Window
 
-	Display     binding.String
-	Result      binding.String
-	History     binding.String
+	Display           binding.String
+	Result            binding.String
+	History           binding.String
+	AllHistoryBuilder *strings.Builder // 追加：用于保存所有历史记录的字符串，方便写入文件
+	lastRecordDate    string           // 新增：记录上一次写入时的日期（如 "2026-03-31"）
+
 	IsNewNumber bool // 是否正在输入一个新的数字（而不是继续在当前数字后面输入）
 
 	IsResultMode binding.Bool // true 代表显示结果（结果粗），false 代表输入中（输入粗)
@@ -38,15 +41,16 @@ type CalcState struct {
 
 func NewCalcState(w fyne.Window) *CalcState {
 	s := &CalcState{
-		Display:      binding.NewString(),
-		Result:       binding.NewString(),
-		History:      binding.NewString(),
-		IsNewNumber:  true,
-		IsResultMode: binding.NewBool(),
-		IsCalcBig:    binding.NewBool(),
-		IsRadian:     binding.NewBool(),
-		Is2ndMode:    binding.NewBool(),
-		win:          w,
+		Display:           binding.NewString(),
+		Result:            binding.NewString(),
+		History:           binding.NewString(),
+		AllHistoryBuilder: &strings.Builder{},
+		IsNewNumber:       true,
+		IsResultMode:      binding.NewBool(),
+		IsCalcBig:         binding.NewBool(),
+		IsRadian:          binding.NewBool(),
+		Is2ndMode:         binding.NewBool(),
+		win:               w,
 	}
 	s.Display.Set("")
 	s.Result.Set("0")
@@ -126,8 +130,11 @@ func (s *CalcState) OnClear() {
 	// 只有当当前有输入内容时才存入历史，避免存入多余空行
 	if s.IsNewNumber == false && current != "0" && current != "" {
 		current = checkLastOperator(current)
-		s.History.Set(history + "\n" + current + " = " + finalRes)
-		s.appendToLocalFile(current + " = " + finalRes) // 自动保存
+
+		newHistory, _:= updateFontSizeBasedOnWidth(current+" = "+finalRes, nil) // 更新字体大小和换行状态
+		s.History.Set(history + "\n" + newHistory)
+		
+		s.recordToHistory(current, finalRes) // 追加到历史记录中
 	}
 
 	s.Display.Set("")
@@ -158,14 +165,16 @@ func (s *CalcState) OnEqual() {
 
 	if finalRes != "" && finalRes != "Error" {
 		current = checkLastOperator(current)
-		newHistory := history + "\n" + current + " = " + finalRes
-		s.History.Set(newHistory)
+
+		newHistory, _:= updateFontSizeBasedOnWidth(current+" = "+finalRes, nil) // 更新字体大小和换行状态
+		s.History.Set(history + "\n" + newHistory)
+
 		s.Result.Set("= " + finalRes)
 		s.IsNewNumber = true
 		isChangeRow = false
 		s.IsResultMode.Set(true)
 
-		s.appendToLocalFile(current + " = " + finalRes) // 自动保存
+		s.recordToHistory(current, finalRes) // 追加到历史记录中
 	}
 }
 

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -14,6 +16,12 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+type historyItem struct {
+	text     string
+	fontSize float32
+	isHeader bool
+}
+
 func CreateUI(state *CalcState) fyne.CanvasObject {
 	// --- 顶部 Tab 居中布局 ---
 	calcLabel := widget.NewButton("计算", func() {})
@@ -23,14 +31,84 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 	convertLabel.Importance = widget.LowImportance
 
 	// --- 定义全屏历史查看函数 ---
-	showFullHistory := func() {}
+	//showFullHistory := func() {}
+	showFullHistory := func() {
+		historyWin := fyne.CurrentApp().NewWindow("全部历史记录")
+		historyWin.Resize(fyne.NewSize(360, 640))
+
+		// 1. 在后台准备数据，避免卡顿
+		// 将 Builder 内容转为切片，过滤掉可能的空行
+		rawLines := strings.Split(state.AllHistoryBuilder.String(), "\n")
+		var data []string
+		for _, line := range rawLines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
+				data = append(data, trimmed)
+			}
+		}
+
+		// 2. 创建 List 组件
+		list := widget.NewList(
+			// 返回数据总量
+			func() int {
+				return len(data)
+			},
+			// 创建单元格外观（模板）
+			func() fyne.CanvasObject {
+				label := widget.NewLabel("")
+				label.Alignment = fyne.TextAlignTrailing
+				//label.TextStyle = fyne.TextStyle{Monospace: true} // 等宽字体更整齐
+				labelFontSize = 18
+				label.SizeName = LabelFont
+
+				return container.NewPadded(label)
+			},
+			// 绑定数据到单元格（滚动时会被频繁调用）
+			func(id widget.ListItemID, item fyne.CanvasObject) {
+				text := data[id]
+				label := item.(*fyne.Container).Objects[0].(*widget.Label)							
+
+				// 如果是日期标题，可以做特殊样式处理
+				if strings.HasPrefix(text, "---") {
+					fmt.Println("Found header:", text)
+					label.Alignment = fyne.TextAlignCenter
+					label.TextStyle = fyne.TextStyle{Bold: true}
+				} else {
+					label.Alignment = fyne.TextAlignTrailing
+					label.TextStyle = fyne.TextStyle{}
+				}
+
+				label.SetText(text)	
+			},
+		)
+
+		// 3. 清除逻辑
+		clearBtn := widget.NewButtonWithIcon("清除全部", theme.DeleteIcon(), func() {
+			dialog.ShowConfirm("确认", "确定删除吗？", func(ok bool) {
+				if ok {
+					state.AllHistoryBuilder.Reset()
+					data = []string{} // 清空本地索引
+					list.Refresh()    // 刷新列表
+				}
+			}, historyWin)
+		})
+
+		// 布局
+		historyWin.SetContent(container.NewBorder(nil, clearBtn, nil, nil, list))
+		historyWin.Show()
+
+		// 自动滚动到底部（在列表渲染完成后执行）
+		if len(data) > 0 {
+			list.ScrollToBottom()
+		}
+	}
 
 	// 定义历史显示, 使用 RichText 获得更好的排版支持
 	richHistory := newAllHistoryClickable()
 	richHistory.Wrapping = fyne.TextWrapBreak
 
 	// 修改默认主题，去除上下边框阴影
-	colorNameShadow := color.Transparent  // color.Transparent
+	colorNameShadow := color.Transparent // color.Transparent
 	customTheme := &myTheme{Theme: theme.DefaultTheme(), colorNameShadow: colorNameShadow}
 	container.NewThemeOverride(richHistory, customTheme)
 
@@ -44,68 +122,69 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 	lblResult := widget.NewLabelWithData(state.Result)
 	lblResult.Alignment = fyne.TextAlignTrailing
 
-	go func() {
-		// 后台补全详细定义
-		showFullHistory = func() {
-			// 声明滚动容器变量，以便后面引用
-			var scroller *container.Scroll
-
-			renderHistory := func() fyne.CanvasObject {
-				fullText := state.GetAllHistory()
-				if fullText == "" {
-					fullText = "暂无历史记录"
-				}
-
-				// 使用 RichText 获得更好的排版支持
-				content := widget.NewRichText(
-					&widget.TextSegment{
-						Text: fullText,
-						Style: widget.RichTextStyle{
-							Alignment: fyne.TextAlignTrailing, // 设置向右对齐
-							SizeName:  SmallFont,
-						},
-					},
-				)
-				// 必须设置换行模式
-				content.Wrapping = fyne.TextWrapBreak
-
-				// 将内容放入滚动容器
-				scroller = container.NewVScroll(container.NewPadded(content))
-				return scroller
-			}
-
-			historyWin := fyne.CurrentApp().NewWindow("全部历史记录")
-			// 动态内容容器，方便清除后刷新显示
-			contentHolder := container.NewStack(renderHistory())
-
-			// 清除逻辑确认弹窗
-			clearAction := func() {
-				dialog.ShowConfirm("确认清除", "是否删除所有本地历史记录？此操作不可撤销。", func(ok bool) {
-					if ok {
-						err := state.ClearAllHistoryLocal()
-						if err != nil {
-							dialog.ShowError(err, historyWin)
-						} else {
-							// 刷新当前全屏窗口的显示
-							contentHolder.Objects = []fyne.CanvasObject{widget.NewLabel("暂无历史记录")}
-							contentHolder.Refresh()
-						}
-					}
-				}, historyWin)
-			}
-
-			// 增加清除按钮（放在底部或右上角）
-			clearBtn := widget.NewButtonWithIcon("清除全部", theme.DeleteIcon(), clearAction)
-
-			// 布局：顶部标题 + 中间内容 + 底部按钮
-			mainLayout := container.NewBorder(nil, clearBtn, nil, nil, contentHolder)
-
-			historyWin.SetContent(mainLayout)
-			historyWin.Resize(fyne.NewSize(360, 640))
-			historyWin.Show()
-			fyne.Do(func() { scroller.ScrollToBottom() })
-		}
-	}()
+	//go func() {
+	//	// 后台补全详细定义
+	//	showFullHistory = func() {
+	//		// 声明滚动容器变量，以便后面引用
+	//		var scroller *container.Scroll
+	//
+	//		renderHistory := func() fyne.CanvasObject {
+	//			//fullText := state.GetAllHistory()
+	//			fullText := state.AllHistoryBuilder.String()
+	//			if fullText == "" {
+	//				fullText = "暂无历史记录"
+	//			}
+	//
+	//			// 使用 RichText 获得更好的排版支持
+	//			content := widget.NewRichText(
+	//				&widget.TextSegment{
+	//					Text: fullText,
+	//					Style: widget.RichTextStyle{
+	//						Alignment: fyne.TextAlignTrailing, // 设置向右对齐
+	//						SizeName:  SmallFont,
+	//					},
+	//				},
+	//			)
+	//			// 必须设置换行模式
+	//			content.Wrapping = fyne.TextWrapBreak
+	//
+	//			// 将内容放入滚动容器
+	//			scroller = container.NewVScroll(container.NewPadded(content))
+	//			return scroller
+	//		}
+	//
+	//		historyWin := fyne.CurrentApp().NewWindow("全部历史记录")
+	//		// 动态内容容器，方便清除后刷新显示
+	//		contentHolder := container.NewStack(renderHistory())
+	//
+	//		// 清除逻辑确认弹窗
+	//		clearAction := func() {
+	//			dialog.ShowConfirm("确认清除", "是否删除所有本地历史记录？此操作不可撤销。", func(ok bool) {
+	//				if ok {
+	//					err := state.ClearAllHistoryLocal()
+	//					if err != nil {
+	//						dialog.ShowError(err, historyWin)
+	//					} else {
+	//						// 刷新当前全屏窗口的显示
+	//						contentHolder.Objects = []fyne.CanvasObject{widget.NewLabel("暂无历史记录")}
+	//						contentHolder.Refresh()
+	//					}
+	//				}
+	//			}, historyWin)
+	//		}
+	//
+	//		// 增加清除按钮（放在底部或右上角）
+	//		clearBtn := widget.NewButtonWithIcon("清除全部", theme.DeleteIcon(), clearAction)
+	//
+	//		// 布局：顶部标题 + 中间内容 + 底部按钮
+	//		mainLayout := container.NewBorder(nil, clearBtn, nil, nil, contentHolder)
+	//
+	//		historyWin.SetContent(mainLayout)
+	//		historyWin.Resize(fyne.NewSize(360, 640))
+	//		historyWin.Show()
+	//		fyne.Do(func() { scroller.ScrollToBottom() })
+	//	}
+	//}()
 
 	// 即时历史显示框, 冒泡显示
 	historyContainer := container.NewBorder(
@@ -414,7 +493,7 @@ func createCalculatorGrid(state *CalcState) fyne.CanvasObject {
 	grid := container.NewGridWithColumns(4,
 		makeBtn("C", nil, 2, state.OnClear),
 		makeBtn("⌫", nil, 0, state.OnBackspace),
-		makeBtn("%", nil, 0, func() {  state.OnTap("%") }),
+		makeBtn("%", nil, 0, func() { state.OnTap("%") }),
 		makeBtn("÷", nil, 3, func() { state.OnTap("÷") }),
 
 		makeBtn("7", nil, 0, func() { state.OnTap("7") }),

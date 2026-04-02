@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -32,7 +34,7 @@ func updateFontSizeBasedOnWidth(text string, richInput *widget.RichText) (string
 		}
 		lastLine := changeText[searchStart:]
 		if measureWidth(lastLine, 18) > actualW {
-			operators := "+-×÷*/"
+			operators := "+-×÷*/="
 
 			// 初始搜索位置：当前行的末尾
 			searchPos := len(lastLine)
@@ -111,6 +113,7 @@ func measureWidth(text string, fontSize float32) float32 {
 func (s *CalcState) ClearAllHistoryLocal() error {
 	// 清除当前显示的当次历史
 	s.History.Set("")
+	s.AllHistoryBuilder.Reset()
 
 	// 删除本地文件
 	storage := fyne.CurrentApp().Storage()
@@ -185,4 +188,99 @@ func (s *CalcState) appendToLocalFile(newRecord string) {
 	if err != nil {
 		s.History.Set("写入失败:" + err.Error())
 	}
+}
+
+func (s *CalcState) recordToHistory(expression string, result string) {
+	now := time.Now().Format("2006-01-02")
+
+	// 核心逻辑：对比缓存的日期
+	// 只有当日期变了（或者是 APP 启动后的第一次记录），才插入标题
+	if s.lastRecordDate != now {
+		// 即使日期变了，我们也双重检查一下 Builder 内容（防止初始化时的边界问题）
+		dateHeader := "--- " + now + " ---"
+
+		// 只有当确实没包含这个标题时才写入
+		// 注意：这里只在日期切换的那一刻调用一次 String()，平时不调用
+		if !strings.Contains(s.AllHistoryBuilder.String(), dateHeader) {
+			s.AllHistoryBuilder.WriteString("\n" + dateHeader + "\n")
+		}
+
+		// 更新缓存的日期
+		s.lastRecordDate = now
+	}
+
+	// 假设每行格式为：算式 = 结果
+	entry := fmt.Sprintf("%s = %s\n", expression, result)
+
+	// 直接操作 string 字段
+	s.AllHistoryBuilder.WriteString(entry)
+}
+
+func saveHistoryToFile(builder *strings.Builder) {
+	if builder == nil || builder.Len() == 0 {
+		return // 如果没有内容，直接返回，避免覆写空文件
+	}
+
+	// 3. 自动清理逻辑：防止内存中的 Builder 过大
+	// 500KB 约等于 512,000 字节
+	if builder.Len() > 500*1024 {
+		content := builder.String()
+		lines := strings.Split(content, "\n")
+
+		if len(lines) > 5000 {
+			// 保留最后 5000 行
+			newContent := strings.Join(lines[len(lines)-5000:], "\n")
+
+			// strings.Builder 不支持直接删除，必须重置后重新写入
+			builder.Reset()
+			builder.WriteString(newContent)
+		}
+	}
+
+	// 【关键修改 2：使用 Fyne 的沙盒路径 API 读写文件】
+	// 1. 获取 App 专属的安全沙盒根目录
+	rootURI := fyne.CurrentApp().Storage().RootURI()
+	if rootURI == nil {
+		return // 如果获取不到，直接返回
+	}
+
+	// 2. 在根目录下构建/获取 history.txt 的完整路径对象
+	fileURI, err := storage.Child(rootURI, "history.txt")
+	if err != nil {
+		return
+	}
+
+	// 3. 打开 Writer 写入文件 (会自动覆盖并保存)
+	writer, err := storage.Writer(fileURI)
+	if err != nil {
+		return
+	}
+	defer writer.Close()
+
+	_, _ = writer.Write([]byte(builder.String()))
+}
+
+func loadHistoryFromFile() []byte {
+	rootURI := fyne.CurrentApp().Storage().RootURI()
+    if rootURI == nil {
+        return nil
+    }
+
+    fileURI, err := storage.Child(rootURI, "history.txt")
+    if err != nil {
+        return nil
+    }
+
+    reader, err := storage.Reader(fileURI)
+	if err != nil {
+		// 文件不存在是正常的（第一次运行），直接返回空
+		return nil
+	}
+	defer reader.Close()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil
+	}
+	return data
 }

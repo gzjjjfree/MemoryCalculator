@@ -17,6 +17,12 @@ func main() {
 	win := myApp.NewWindow("计算器")
 
 	state = NewCalcState(win)
+
+	// 在后台加载历史记录，避免界面卡顿
+	go func() {
+		state.AllHistoryBuilder.Write(loadHistoryFromFile())
+	}()
+
 	ui := CreateUI(state)
 
 	state.scoreOverlay = container.NewStack()
@@ -27,9 +33,15 @@ func main() {
 	)
 	win.SetContent(contentStack)
 
-	//win.SetContent(container.NewPadded(ui))
-	//win.SetContent(ui)
 	win.Resize(fyne.NewSize(360, 640))
+
+	// 当应用退到后台（例如按了 Home 键），或者被系统停止时触发保存
+	myApp.Lifecycle().SetOnExitedForeground(func() {
+		saveHistoryToFile(state.AllHistoryBuilder)
+	})
+	myApp.Lifecycle().SetOnStopped(func() {
+		saveHistoryToFile(state.AllHistoryBuilder)
+	})
 
 	win.ShowAndRun()
 }
