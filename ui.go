@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"image/color"
 	"strings"
 	"time"
@@ -16,12 +15,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-type historyItem struct {
-	text     string
-	fontSize float32
-	isHeader bool
-}
-
+// --- UI 构建 ---
 func CreateUI(state *CalcState) fyne.CanvasObject {
 	// --- 顶部 Tab 居中布局 ---
 	calcLabel := widget.NewButton("计算", func() {})
@@ -31,23 +25,22 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 	convertLabel.Importance = widget.LowImportance
 
 	// --- 定义全屏历史查看函数 ---
-	//showFullHistory := func() {}
 	showFullHistory := func() {
 		historyWin := fyne.CurrentApp().NewWindow("全部历史记录")
 		historyWin.Resize(fyne.NewSize(360, 640))
 
-		// 1. 在后台准备数据，避免卡顿
 		// 将 Builder 内容转为切片，过滤掉可能的空行
 		rawLines := strings.Split(state.AllHistoryBuilder.String(), "\n")
 		var data []string
 		for _, line := range rawLines {
 			trimmed := strings.TrimSpace(line)
-			if trimmed != "" {
-				data = append(data, trimmed)
+			if trimmed == "" {
+				continue
 			}
+			data = append(data, trimmed)
 		}
 
-		// 2. 创建 List 组件
+		// 创建 List 组件
 		list := widget.NewList(
 			// 返回数据总量
 			func() int {
@@ -57,7 +50,8 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 			func() fyne.CanvasObject {
 				label := widget.NewLabel("")
 				label.Alignment = fyne.TextAlignTrailing
-				//label.TextStyle = fyne.TextStyle{Monospace: true} // 等宽字体更整齐
+				label.Wrapping = fyne.TextWrapBreak               // 允许在长等式处自动换行
+				label.TextStyle = fyne.TextStyle{Monospace: true} // 等宽字体更整齐
 				labelFontSize = 18
 				label.SizeName = LabelFont
 
@@ -66,11 +60,10 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 			// 绑定数据到单元格（滚动时会被频繁调用）
 			func(id widget.ListItemID, item fyne.CanvasObject) {
 				text := data[id]
-				label := item.(*fyne.Container).Objects[0].(*widget.Label)							
+				label := item.(*fyne.Container).Objects[0].(*widget.Label)
 
 				// 如果是日期标题，可以做特殊样式处理
 				if strings.HasPrefix(text, "---") {
-					fmt.Println("Found header:", text)
 					label.Alignment = fyne.TextAlignCenter
 					label.TextStyle = fyne.TextStyle{Bold: true}
 				} else {
@@ -78,15 +71,15 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 					label.TextStyle = fyne.TextStyle{}
 				}
 
-				label.SetText(text)	
+				label.SetText(text)
 			},
 		)
 
-		// 3. 清除逻辑
+		// 清除逻辑
 		clearBtn := widget.NewButtonWithIcon("清除全部", theme.DeleteIcon(), func() {
 			dialog.ShowConfirm("确认", "确定删除吗？", func(ok bool) {
 				if ok {
-					state.AllHistoryBuilder.Reset()
+					state.ClearAllHistoryLocal()
 					data = []string{} // 清空本地索引
 					list.Refresh()    // 刷新列表
 				}
@@ -122,70 +115,6 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 	lblResult := widget.NewLabelWithData(state.Result)
 	lblResult.Alignment = fyne.TextAlignTrailing
 
-	//go func() {
-	//	// 后台补全详细定义
-	//	showFullHistory = func() {
-	//		// 声明滚动容器变量，以便后面引用
-	//		var scroller *container.Scroll
-	//
-	//		renderHistory := func() fyne.CanvasObject {
-	//			//fullText := state.GetAllHistory()
-	//			fullText := state.AllHistoryBuilder.String()
-	//			if fullText == "" {
-	//				fullText = "暂无历史记录"
-	//			}
-	//
-	//			// 使用 RichText 获得更好的排版支持
-	//			content := widget.NewRichText(
-	//				&widget.TextSegment{
-	//					Text: fullText,
-	//					Style: widget.RichTextStyle{
-	//						Alignment: fyne.TextAlignTrailing, // 设置向右对齐
-	//						SizeName:  SmallFont,
-	//					},
-	//				},
-	//			)
-	//			// 必须设置换行模式
-	//			content.Wrapping = fyne.TextWrapBreak
-	//
-	//			// 将内容放入滚动容器
-	//			scroller = container.NewVScroll(container.NewPadded(content))
-	//			return scroller
-	//		}
-	//
-	//		historyWin := fyne.CurrentApp().NewWindow("全部历史记录")
-	//		// 动态内容容器，方便清除后刷新显示
-	//		contentHolder := container.NewStack(renderHistory())
-	//
-	//		// 清除逻辑确认弹窗
-	//		clearAction := func() {
-	//			dialog.ShowConfirm("确认清除", "是否删除所有本地历史记录？此操作不可撤销。", func(ok bool) {
-	//				if ok {
-	//					err := state.ClearAllHistoryLocal()
-	//					if err != nil {
-	//						dialog.ShowError(err, historyWin)
-	//					} else {
-	//						// 刷新当前全屏窗口的显示
-	//						contentHolder.Objects = []fyne.CanvasObject{widget.NewLabel("暂无历史记录")}
-	//						contentHolder.Refresh()
-	//					}
-	//				}
-	//			}, historyWin)
-	//		}
-	//
-	//		// 增加清除按钮（放在底部或右上角）
-	//		clearBtn := widget.NewButtonWithIcon("清除全部", theme.DeleteIcon(), clearAction)
-	//
-	//		// 布局：顶部标题 + 中间内容 + 底部按钮
-	//		mainLayout := container.NewBorder(nil, clearBtn, nil, nil, contentHolder)
-	//
-	//		historyWin.SetContent(mainLayout)
-	//		historyWin.Resize(fyne.NewSize(360, 640))
-	//		historyWin.Show()
-	//		fyne.Do(func() { scroller.ScrollToBottom() })
-	//	}
-	//}()
-
 	// 即时历史显示框, 冒泡显示
 	historyContainer := container.NewBorder(
 		nil,                // Top
@@ -206,9 +135,11 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 
 		text, _ := state.Display.Get()
 
-		actualW = richInput.Size().Width - theme.Padding()*4
+		// 根据当前输入框宽度和文本内容动态调整字体大小
+		actualW = richInput.Size().Width - theme.Padding()*4 // 留出一些内边距空间
 		changeText, isFinal := updateFontSizeBasedOnWidth(text, richInput)
 
+		// 根据是否是结果模式调整字体大小和样式
 		if isBold {
 			textresult, _ := state.Result.Get()
 			fontSizes := []float32{42, 40, 38, 36, 34, 32, 30, 28, 26, 24, 22, 20, 18}
@@ -218,7 +149,7 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 					break
 				}
 			}
-			richInputFontSize = 18
+			richInputFontSize = 18 // 输入模式字体固定为 18，结果模式字体会根据内容自动调整
 		} else {
 			labelFontSize = 18 // 当 isBold=false（输入模式）时设为 18
 		}
@@ -326,7 +257,6 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 		scrollSession, // Center (自动填充)
 	)
 
-	//content := container.NewGridWithRows(2, displayArea, keypadContainer)
 	content := container.New(&ratioLayout{ratio: 0.47}, displayArea, keypadContainer)
 
 	// 创建一个透明的矩形作为底部的“垫片”，高度设置为 20
@@ -337,6 +267,8 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 	return container.NewBorder(nil, bottomSpacer, nil, nil, content)
 }
 
+// style: 0-普通，1-强调，2-警告，3-成功
+// 根据文本内容自动设置字体颜色和背景颜色，并创建按钮
 func makeBtn(text string, icon fyne.Resource, style int, action func()) fyne.CanvasObject {
 	var b *widget.Button
 	if icon != nil {
@@ -357,7 +289,7 @@ func makeBtn(text string, icon fyne.Resource, style int, action func()) fyne.Can
 		colorBackground = color.NRGBA{R: 220, G: 235, B: 255, A: 255} // 淡蓝色背景
 	}
 	customTheme := &myTheme{Theme: theme.DefaultTheme(), textSize: 30, colorFont: colorFont, colorBackground: colorBackground}
-	//customTheme := &myTheme{Theme: theme.DefaultTheme(), textSize: 30}
+
 	container.NewThemeOverride(b, customTheme)
 
 	switch style {
@@ -375,6 +307,7 @@ func makeBtn(text string, icon fyne.Resource, style int, action func()) fyne.Can
 	return container.NewStack(b)
 }
 
+// 创建一个新的按键布局，包含更多科学计算功能
 func createConverterGrid(state *CalcState) fyne.CanvasObject {
 	var degBtn *widget.Button
 
@@ -489,6 +422,7 @@ func createConverterGrid(state *CalcState) fyne.CanvasObject {
 	return grid
 }
 
+// 创建一个新的按键布局，包含基本的计算功能（4x5 布局）
 func createCalculatorGrid(state *CalcState) fyne.CanvasObject {
 	grid := container.NewGridWithColumns(4,
 		makeBtn("C", nil, 2, state.OnClear),
@@ -520,6 +454,7 @@ func createCalculatorGrid(state *CalcState) fyne.CanvasObject {
 	return grid
 }
 
+// 定义一个新的 RichText 组件，重写 Tapped 方法实现点击切换颜色的功能
 type allHistoryClickable struct {
 	widget.RichText
 }
@@ -548,6 +483,7 @@ func (t *allHistoryClickable) Tapped(_ *fyne.PointEvent) {
 	t.Refresh()
 }
 
+// 创建一个新的 allHistoryClickable 实例，并进行必要的初始化
 func newAllHistoryClickable() *allHistoryClickable {
 	t := &allHistoryClickable{}
 
@@ -558,10 +494,12 @@ func newAllHistoryClickable() *allHistoryClickable {
 	return t
 }
 
+// 定义一个自定义布局，按照给定的比例分配上下两个区域的空间
 type ratioLayout struct {
 	ratio float32 // 上部占比，如 0.4
 }
 
+// 实现 Layout 方法，根据给定的 size 和 ratio 分配空间
 func (r *ratioLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	topHeight := size.Height * r.ratio
 	objects[0].Resize(fyne.NewSize(size.Width, topHeight))
@@ -571,6 +509,7 @@ func (r *ratioLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	objects[1].Move(fyne.NewPos(0, topHeight))
 }
 
+// 实现 MinSize 方法，返回一个合理的最小尺寸，避免过小导致布局混乱
 func (r *ratioLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 	return fyne.NewSize(100, 100) // 设置一个基础最小尺寸
 }

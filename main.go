@@ -10,12 +10,13 @@ import (
 var state *CalcState
 
 func main() {
-
+	// 创建应用并设置自定义主题
 	myApp := app.NewWithID("com.gzjjj.memorycalculator")
 	myApp.Settings().SetTheme(&myTheme{Theme: theme.DefaultTheme(), textSize: 24})
 
 	win := myApp.NewWindow("计算器")
 
+	// 初始化全局状态
 	state = NewCalcState(win)
 
 	// 在后台加载历史记录，避免界面卡顿
@@ -23,8 +24,10 @@ func main() {
 		state.AllHistoryBuilder.Write(loadHistoryFromFile())
 	}()
 
+	// 创建UI界面
 	ui := CreateUI(state)
 
+	// 创建一个Stack容器，底层是原来的计算器界面，顶层是平摊提示框（初始隐藏）
 	state.scoreOverlay = container.NewStack()
 	state.scoreOverlay.Hide()
 	contentStack := container.NewStack(

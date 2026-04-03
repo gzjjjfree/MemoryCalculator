@@ -12,10 +12,10 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var isChangeRow bool = false // 是否需要换行
-var stateMutex sync.Mutex
-var richInputFontSize float32 = 42
-var labelFontSize float32 = 18
+var isChangeRow bool = false       // 是否需要换行
+var stateMutex sync.Mutex          // 保护 isChangeRow 的并发访问
+var richInputFontSize float32 = 42 // 初始字体大小，后续会根据输入动态调整
+var labelFontSize float32 = 18     // 历史记录标签的字体大小，保持固定
 
 // 全局变量：当前输入框宽度和字体大小
 var actualW float32 = 300 // 可在UI初始化时动态赋值
@@ -91,7 +91,7 @@ func updateFontSizeBasedOnWidth(text string, richInput *widget.RichText) (string
 }
 
 // 获取当前字体大小（step=2递减），text取自全局state
-func getFontSize() float32 {
+func getRichInputFontSize() float32 {
 	return richInputFontSize
 }
 
@@ -115,9 +115,18 @@ func (s *CalcState) ClearAllHistoryLocal() error {
 	s.History.Set("")
 	s.AllHistoryBuilder.Reset()
 
+	rootURI := fyne.CurrentApp().Storage().RootURI()
+	if rootURI == nil {
+		return nil
+	}
+
+	fileURI, err := storage.Child(rootURI, "history.txt")
+	if err != nil {
+		return nil
+	}
+
 	// 删除本地文件
-	storage := fyne.CurrentApp().Storage()
-	err := storage.Remove("history.txt")
+	err = storage.Delete(fileURI)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return nil
@@ -127,69 +136,7 @@ func (s *CalcState) ClearAllHistoryLocal() error {
 	return nil
 }
 
-// 读取全部历史（给全屏界面用）
-func (s *CalcState) GetAllHistory() string {
-	storage := fyne.CurrentApp().Storage()
-
-	// 检查文件是否存在
-	reader, err := storage.Open("history.txt")
-	if err != nil {
-		// 文件不存在是正常的（第一次运行），直接返回空
-		return ""
-	}
-	defer reader.Close()
-
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return ""
-	}
-	return string(data)
-}
-
-// 核心保存逻辑：带日期检测
-func (s *CalcState) appendToLocalFile(newRecord string) {
-	existingHistory := s.GetAllHistory()
-
-	now := time.Now().Format("2006-01-02")
-
-	// 读取文件看最后一行是不是今天的日期
-
-	var finalWrite strings.Builder
-	// 如果文件为空，或者最后一次记录里不包含今天的日期标题
-	if existingHistory == "" || !strings.Contains(existingHistory, "--- "+now+" ---") {
-		finalWrite.WriteString("\n--- " + now + " ---\n")
-	}
-	finalWrite.WriteString(newRecord + "\n")
-
-	// 合并内容
-	allContent := existingHistory + finalWrite.String()
-
-	if len(allContent) > 500*1024 { // 如果文件大于 500KB
-		lines := strings.Split(allContent, "\n")
-		if len(lines) > 5000 { // 至少清理掉一半，减少操作频率
-			allContent = strings.Join(lines[len(lines)-5000:], "\n")
-		}
-	}
-
-	// 写入
-	storage := fyne.CurrentApp().Storage()
-	writer, err := storage.Create("history.txt")
-
-	if err != nil {
-		writer, err = storage.Save("history.txt")
-		if err != nil {
-			s.History.Set("创建失败:" + err.Error())
-			return
-		}
-	}
-	defer writer.Close()
-
-	_, err = writer.Write([]byte(allContent))
-	if err != nil {
-		s.History.Set("写入失败:" + err.Error())
-	}
-}
-
+// 记录历史：每次计算完成后调用，参数是算式和结果
 func (s *CalcState) recordToHistory(expression string, result string) {
 	now := time.Now().Format("2006-01-02")
 
@@ -216,12 +163,13 @@ func (s *CalcState) recordToHistory(expression string, result string) {
 	s.AllHistoryBuilder.WriteString(entry)
 }
 
+// 保存历史到文件：在应用退到后台或者被系统停止时调用
 func saveHistoryToFile(builder *strings.Builder) {
 	if builder == nil || builder.Len() == 0 {
 		return // 如果没有内容，直接返回，避免覆写空文件
 	}
 
-	// 3. 自动清理逻辑：防止内存中的 Builder 过大
+	// 自动清理逻辑：防止内存中的 Builder 过大
 	// 500KB 约等于 512,000 字节
 	if builder.Len() > 500*1024 {
 		content := builder.String()
@@ -237,20 +185,20 @@ func saveHistoryToFile(builder *strings.Builder) {
 		}
 	}
 
-	// 【关键修改 2：使用 Fyne 的沙盒路径 API 读写文件】
-	// 1. 获取 App 专属的安全沙盒根目录
+	// 【关键修改：使用 Fyne 的沙盒路径 API 读写文件】
+	// 获取 App 专属的安全沙盒根目录
 	rootURI := fyne.CurrentApp().Storage().RootURI()
 	if rootURI == nil {
 		return // 如果获取不到，直接返回
 	}
 
-	// 2. 在根目录下构建/获取 history.txt 的完整路径对象
+	// 在根目录下构建/获取 history.txt 的完整路径对象
 	fileURI, err := storage.Child(rootURI, "history.txt")
 	if err != nil {
 		return
 	}
 
-	// 3. 打开 Writer 写入文件 (会自动覆盖并保存)
+	// 打开 Writer 写入文件 (会自动覆盖并保存)
 	writer, err := storage.Writer(fileURI)
 	if err != nil {
 		return
@@ -260,18 +208,19 @@ func saveHistoryToFile(builder *strings.Builder) {
 	_, _ = writer.Write([]byte(builder.String()))
 }
 
+// 从文件加载历史：在应用启动时调用，返回文件内容的字节切片
 func loadHistoryFromFile() []byte {
 	rootURI := fyne.CurrentApp().Storage().RootURI()
-    if rootURI == nil {
-        return nil
-    }
+	if rootURI == nil {
+		return nil
+	}
 
-    fileURI, err := storage.Child(rootURI, "history.txt")
-    if err != nil {
-        return nil
-    }
+	fileURI, err := storage.Child(rootURI, "history.txt")
+	if err != nil {
+		return nil
+	}
 
-    reader, err := storage.Reader(fileURI)
+	reader, err := storage.Reader(fileURI)
 	if err != nil {
 		// 文件不存在是正常的（第一次运行），直接返回空
 		return nil

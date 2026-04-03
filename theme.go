@@ -16,6 +16,7 @@ type myTheme struct {
 	colorNameShadow color.Alpha16	
 }
 
+// 实现 Theme 接口的 Color 方法，根据颜色名称返回对应的颜色
 func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
 	switch name {
 	case theme.ColorNameForegroundOnPrimary:	// 主要颜色上的前景色，通常用于按钮文字等	
@@ -35,10 +36,12 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 	}
 }
 
+// 实现 Theme 接口的 Font 方法，直接使用默认主题的字体资源
 func (m myTheme) Font(style fyne.TextStyle) fyne.Resource {
 	return theme.DefaultTheme().Font(style)
 }
 
+// 实现 Theme 接口的 Size 方法，根据大小名称返回对应的尺寸值
 func (m myTheme) Size(name fyne.ThemeSizeName) float32 {
 	switch name {
 	case theme.SizeNameText:
@@ -54,7 +57,7 @@ func (m myTheme) Size(name fyne.ThemeSizeName) float32 {
 	case SmallFont:
 		return 18
 	case RichInputFont:
-		return getFontSize()
+		return getRichInputFontSize()
 	case LabelFont:
 		return getLabelFontSize()
 	default:
@@ -62,6 +65,7 @@ func (m myTheme) Size(name fyne.ThemeSizeName) float32 {
 	}
 }
 
+// 实现 Theme 接口的 Icon 方法，直接使用默认主题的图标资源
 func (m myTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 	return theme.DefaultTheme().Icon(name)
 }
@@ -71,6 +75,6 @@ var (
 	LargeFont     fyne.ThemeSizeName = "LargeFontSize"     // "BigFontSize 30"
 	MediumFont    fyne.ThemeSizeName = "MediumFontSize"    //"MediumFontSize" 24
 	SmallFont     fyne.ThemeSizeName = "SmallFontSize"     //"SmallFontSize" 18
-	RichInputFont fyne.ThemeSizeName = "RichInputFontSize" //func getFontSize()
+	RichInputFont fyne.ThemeSizeName = "RichInputFontSize" //func getRichInputFontSize()
 	LabelFont	  fyne.ThemeSizeName = "LabelFontSize"      // "LabelFontSize" 14
 )

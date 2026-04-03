@@ -21,24 +21,25 @@ import (
 type CalcState struct {
 	win fyne.Window
 
-	Display           binding.String
-	Result            binding.String
-	History           binding.String
-	AllHistoryBuilder *strings.Builder // 追加：用于保存所有历史记录的字符串，方便写入文件
-	lastRecordDate    string           // 新增：记录上一次写入时的日期（如 "2026-03-31"）
+	Display           binding.String   // 当前输入的算式
+	Result            binding.String   // 当前算式的结果预览
+	History           binding.String   // 历史记录（每次计算完成后追加）
+	AllHistoryBuilder *strings.Builder // 用于保存所有历史记录的字符串，方便写入文件
+	lastRecordDate    string           // 记录上一次写入时的日期（如 "2026-03-31"）
 
 	IsNewNumber bool // 是否正在输入一个新的数字（而不是继续在当前数字后面输入）
 
 	IsResultMode binding.Bool // true 代表显示结果（结果粗），false 代表输入中（输入粗)
 	IsCalcBig    binding.Bool // 是否使用高级计算布局
 	IsRadian     binding.Bool // true 为弧度模式，false 为角度模式
-	Is2ndMode    binding.Bool
+	Is2ndMode    binding.Bool // 是否处于 2nd 模式
 
 	isInterceptingForScore bool            // 是否正在拦截输入
 	onScoreInput           func(string)    // 拦截时的回调函数
-	scoreOverlay           *fyne.Container // 新增：平摊功能的 UI 容器
+	scoreOverlay           *fyne.Container // 平摊功能的 UI 容器
 }
 
+// 构造函数，初始化状态
 func NewCalcState(w fyne.Window) *CalcState {
 	s := &CalcState{
 		Display:           binding.NewString(),
@@ -61,6 +62,7 @@ func NewCalcState(w fyne.Window) *CalcState {
 	return s
 }
 
+// 处理按键输入的核心函数
 func (s *CalcState) OnTap(char string) {
 	// 如果处于拦截模式，将按键传给临时函数，不执行计算逻辑
 	if s.isInterceptingForScore && s.onScoreInput != nil {
@@ -68,6 +70,7 @@ func (s *CalcState) OnTap(char string) {
 		return
 	}
 
+	// 获取当前是否处于结果模式（结果模式下输入算式会重置当前输入）
 	isResultMode, _ := s.IsResultMode.Get()
 
 	// 如果当前是结果模式，点击 % 则运行特定函数, 不执行计算逻辑
@@ -87,6 +90,7 @@ func (s *CalcState) OnTap(char string) {
 
 	// 如果是新数字开始，重置加粗状态
 	if s.IsNewNumber {
+		// 如果新输入的字符是运算符，且当前结果不是 0，则保留结果作为新输入的开头（例如继续在结果后面输入运算符）
 		result, _ := s.Result.Get()
 		current = ""
 		if result != "0" && strings.ContainsAny(char, "+-×÷)") {
@@ -117,6 +121,7 @@ func (s *CalcState) OnTap(char string) {
 	}
 }
 
+// 处理清除键
 func (s *CalcState) OnClear() {
 	// 如果处于拦截模式，将按键传给临时函数，不执行计算逻辑
 	if s.isInterceptingForScore && s.onScoreInput != nil {
@@ -131,9 +136,9 @@ func (s *CalcState) OnClear() {
 	if s.IsNewNumber == false && current != "0" && current != "" {
 		current = checkLastOperator(current)
 
-		newHistory, _:= updateFontSizeBasedOnWidth(current+" = "+finalRes, nil) // 更新字体大小和换行状态
+		newHistory, _ := updateFontSizeBasedOnWidth(current+" = "+finalRes, nil) // 更新字体大小和换行状态
 		s.History.Set(history + "\n" + newHistory)
-		
+
 		s.recordToHistory(current, finalRes) // 追加到历史记录中
 	}
 
@@ -145,6 +150,7 @@ func (s *CalcState) OnClear() {
 	s.IsResultMode.Set(true)
 }
 
+// 处理等号键
 func (s *CalcState) OnEqual() {
 	// 如果处于拦截模式，将按键传给临时函数，不执行计算逻辑
 	if s.isInterceptingForScore && s.onScoreInput != nil {
@@ -155,6 +161,7 @@ func (s *CalcState) OnEqual() {
 	history, _ := s.History.Get()
 	current, _ := s.Display.Get()
 
+	// 自动补全未闭合的括号 (防止 govaluate 报错)
 	leftCount := strings.Count(current, "(")
 	rightCount := strings.Count(current, ")")
 	if leftCount > rightCount {
@@ -163,10 +170,11 @@ func (s *CalcState) OnEqual() {
 
 	finalRes := s.Calculate(current)
 
+	// 只有当当前有输入内容时才存入历史，避免存入多余空行
 	if finalRes != "" && finalRes != "Error" {
 		current = checkLastOperator(current)
 
-		newHistory, _:= updateFontSizeBasedOnWidth(current+" = "+finalRes, nil) // 更新字体大小和换行状态
+		newHistory, _ := updateFontSizeBasedOnWidth(current+" = "+finalRes, nil) // 更新字体大小和换行状态
 		s.History.Set(history + "\n" + newHistory)
 
 		s.Result.Set("= " + finalRes)
@@ -178,6 +186,7 @@ func (s *CalcState) OnEqual() {
 	}
 }
 
+// 计算函数，使用 govaluate 解析和计算表达式
 func (s *CalcState) Calculate(equation string) string {
 	if equation == "" || equation == "0" {
 		return "0"
@@ -222,7 +231,7 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return math.Sin(val), nil
 		},
-		"asin": func(args ...interface{}) (interface{}, error) {
+		"asin": func(args ...any) (any, error) {
 			if len(args) < 1 {
 				return nil, errors.New("Domain Error")
 			}
@@ -236,7 +245,7 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return res, nil
 		},
-		"cos": func(args ...interface{}) (interface{}, error) {
+		"cos": func(args ...any) (any, error) {
 			if len(args) < 1 {
 				return 0.0, nil
 			}
@@ -250,7 +259,7 @@ func (s *CalcState) Calculate(equation string) string {
 			return math.Cos(val), nil
 			//return math.Cos(val * math.Pi / 180), nil
 		},
-		"acos": func(args ...interface{}) (interface{}, error) {
+		"acos": func(args ...any) (any, error) {
 			val := args[0].(float64)
 			if val < -1 || val > 1 {
 				return nil, errors.New("Domain Error")
@@ -261,7 +270,7 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return res, nil
 		},
-		"tan": func(args ...interface{}) (interface{}, error) {
+		"tan": func(args ...any) (any, error) {
 			if len(args) < 1 {
 				return 0.0, nil
 			}
@@ -274,7 +283,7 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return math.Tan(val), nil
 		},
-		"atan": func(args ...interface{}) (interface{}, error) {
+		"atan": func(args ...any) (any, error) {
 			val := args[0].(float64)
 			res := math.Atan(val)
 			if !isRad {
@@ -282,7 +291,7 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return res, nil
 		},
-		"sqrt": func(args ...interface{}) (interface{}, error) {
+		"sqrt": func(args ...any) (any, error) {
 			if len(args) < 1 {
 				return 0.0, nil
 			}
@@ -292,7 +301,7 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return math.Sqrt(val), nil
 		},
-		"lg": func(args ...interface{}) (interface{}, error) {
+		"lg": func(args ...any) (any, error) {
 			if len(args) < 1 {
 				return 0.0, nil
 			}
@@ -302,7 +311,7 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return math.Log10(val), nil
 		},
-		"ln": func(args ...interface{}) (interface{}, error) {
+		"ln": func(args ...any) (any, error) {
 			if len(args) < 1 {
 				return 0.0, nil
 			}
@@ -312,23 +321,23 @@ func (s *CalcState) Calculate(equation string) string {
 			}
 			return math.Log(val), nil
 		},
-		"pow": func(args ...interface{}) (interface{}, error) {
+		"pow": func(args ...any) (any, error) {
 			if len(args) < 2 {
 				return nil, errors.New("pow requires 2 arguments")
 			}
 			return math.Pow(args[0].(float64), args[1].(float64)), nil
 		},
-		"pow10": func(args ...interface{}) (interface{}, error) {
+		"pow10": func(args ...any) (any, error) {
 			return math.Pow(10, args[0].(float64)), nil
 		},
-		"exp": func(args ...interface{}) (interface{}, error) {
+		"exp": func(args ...any) (any, error) {
 			return math.Exp(args[0].(float64)), nil
 		},
-		"sqr": func(args ...interface{}) (interface{}, error) {
+		"sqr": func(args ...any) (any, error) {
 			val := args[0].(float64)
 			return val * val, nil
 		},
-		"fact": func(args ...interface{}) (interface{}, error) {
+		"fact": func(args ...any) (any, error) {
 			n := args[0].(float64)
 			if n < 0 {
 				return 0.0, nil
@@ -354,8 +363,7 @@ func (s *CalcState) Calculate(equation string) string {
 		return ""
 	}
 
-	res, err := expression.Evaluate(map[string]interface{}{})
-	//res, err := expression.Evaluate(nil)
+	res, err := expression.Evaluate(map[string]any{})	
 	if err != nil {
 		return "Error"
 	}
@@ -397,6 +405,7 @@ func replacePower(expr string) string {
 	})
 }
 
+// 处理退格键
 func (s *CalcState) OnBackspace() {
 	// 如果处于拦截模式，将按键传给临时函数，不执行计算逻辑
 	if s.isInterceptingForScore && s.onScoreInput != nil {
@@ -420,7 +429,7 @@ func (s *CalcState) OnBackspace() {
 	// 使用 rune 处理多字节字符
 	runes := []rune(current)
 
-	if len(runes) <= 1 {
+	if len(runes) <= 1 { // 如果只有一个字符，退格后变成空
 		s.Display.Set("")
 		s.Result.Set("= 0")
 		isChangeRow = false // 重置换行状态
@@ -456,6 +465,7 @@ func (s *CalcState) OnBackspace() {
 	}
 }
 
+// 切换大布局的动作
 func (s *CalcState) OnGoBigGrid() {
 	s.IsNewNumber = true
 	if ok, _ := s.IsCalcBig.Get(); ok {
@@ -465,6 +475,7 @@ func (s *CalcState) OnGoBigGrid() {
 	}
 }
 
+// 处理高级函数按钮的输入
 func (s *CalcState) OnAdvancedTap(op string) {
 	s.IsNewNumber = false
 	s.IsResultMode.Set(false)
@@ -503,7 +514,6 @@ func (s *CalcState) OnAdvancedTap(op string) {
 	newEq, _ := s.Display.Get()
 	// 如果是以 "(" 结尾（刚输入完函数名），通常不需要显示即时预览结果
 	if strings.HasSuffix(newEq, "(") {
-		//s.Result.Set("0")
 		return
 	}
 
@@ -514,6 +524,7 @@ func (s *CalcState) OnAdvancedTap(op string) {
 	}
 }
 
+// 切换 DEG/RAD 的动作
 func (s *CalcState) OnDegToRad() {
 	isRad, _ := s.IsRadian.Get()
 
@@ -546,6 +557,7 @@ func checkLastOperator(equation string) string {
 	return equation
 }
 
+// 显示平摊分数的界面
 func (s *CalcState) displayScore() {
 	result, _ := s.Result.Get()
 	scoreStr := strings.TrimPrefix(result, "= ")
@@ -559,7 +571,7 @@ func (s *CalcState) displayScore() {
 	peopleInput := binding.NewString()
 	peopleInput.Set("")
 
-	// 1. 定义核心计算逻辑 (抽取出来以便复用)
+	// 定义核心计算逻辑
 	updatePreview := func() {
 		val, _ := peopleInput.Get()
 		if val == "" {
@@ -575,6 +587,7 @@ func (s *CalcState) displayScore() {
 			return
 		}
 
+		// 计算平均分和余数
 		base := totalScore / num
 		rem := totalScore % num
 		var finalStr string
@@ -582,13 +595,13 @@ func (s *CalcState) displayScore() {
 			finalStr = fmt.Sprintf("总分:%d | %d人%d分  ", totalScore, num, base)
 		} else {
 			finalStr = fmt.Sprintf("总分:%d | %d人%d分, %d人%d分  ",
-				totalScore, rem, base+1, num-rem, base)
+				totalScore, rem, base + 1, num - rem, base)
 		}
 		s.Result.Set(finalStr)
 		s.IsResultMode.Set(false)
 	}
 
-	// 2. 监听输入变化实现实时预览
+	// 监听输入变化实现实时预览
 	peopleInput.AddListener(binding.NewDataListener(func() {
 		updatePreview()
 	}))
