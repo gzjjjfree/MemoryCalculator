@@ -17,3 +17,5 @@ go.sum.lock
 
 # Fyne 自动生成的元数据
 FyneApp.toml.bak
+
+fyne/

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 )
@@ -109,11 +110,57 @@ func measureWidth(text string, fontSize float32) float32 {
 	return size.Width
 }
 
+type CalcState struct {
+	win fyne.Window
+
+	display           binding.String   // 当前输入的算式
+	result            binding.String   // 当前算式的结果预览
+	history           binding.String   // 历史记录（每次计算完成后追加）
+	allHistoryBuilder *strings.Builder // 用于保存所有历史记录的字符串，方便写入文件
+	saveFileName      string           // 本地文件名（如 "history.txt"）
+	lastRecordDate    string           // 记录上一次写入时的日期（如 "2026-03-31"）
+
+	isNewNumber bool // 是否正在输入一个新的数字（而不是继续在当前数字后面输入）
+
+	isResultMode binding.Bool // true 代表显示结果（结果粗），false 代表输入中（输入粗)
+	isCalcBig    binding.Bool // 是否使用高级计算布局
+	isRadian     binding.Bool // true 为弧度模式，false 为角度模式
+	is2ndMode    binding.Bool // 是否处于 2nd 模式
+
+	isInterceptingForScore bool            // 是否正在拦截输入
+	onScoreInput           func(string)    // 拦截时的回调函数
+	scoreOverlay           *fyne.Container // 平摊功能的 UI 容器
+}
+
+// 构造函数，初始化状态
+func NewCalcState(w fyne.Window) *CalcState {
+	s := &CalcState{
+		display:           binding.NewString(),
+		result:            binding.NewString(),
+		history:           binding.NewString(),
+		allHistoryBuilder: &strings.Builder{},
+		saveFileName:      "history.txt",
+		isNewNumber:       true,
+		isResultMode:      binding.NewBool(),
+		isCalcBig:         binding.NewBool(),
+		isRadian:          binding.NewBool(),
+		is2ndMode:         binding.NewBool(),
+		win:               w,
+	}
+	s.display.Set("")
+	s.result.Set("0")
+	s.isResultMode.Set(true) // 初始结果行粗
+	s.isCalcBig.Set(false)
+	s.isRadian.Set(false) // 默认角度模式
+	s.is2ndMode.Set(false)
+	return s
+}
+
 // 清除所有历史记录（包括内存和本地文件）
 func (s *CalcState) ClearAllHistoryLocal() error {
 	// 清除当前显示的当次历史
-	s.History.Set("")
-	s.AllHistoryBuilder.Reset()
+	s.history.Set("")
+	s.allHistoryBuilder.Reset()
 
 	rootURI := fyne.CurrentApp().Storage().RootURI()
 	if rootURI == nil {
@@ -148,8 +195,8 @@ func (s *CalcState) recordToHistory(expression string, result string) {
 
 		// 只有当确实没包含这个标题时才写入
 		// 注意：这里只在日期切换的那一刻调用一次 String()，平时不调用
-		if !strings.Contains(s.AllHistoryBuilder.String(), dateHeader) {
-			s.AllHistoryBuilder.WriteString("\n" + dateHeader + "\n")
+		if !strings.Contains(s.allHistoryBuilder.String(), dateHeader) {
+			s.allHistoryBuilder.WriteString("\n" + dateHeader + "\n")
 		}
 
 		// 更新缓存的日期
@@ -160,19 +207,19 @@ func (s *CalcState) recordToHistory(expression string, result string) {
 	entry := fmt.Sprintf("%s = %s\n", expression, result)
 
 	// 直接操作 string 字段
-	s.AllHistoryBuilder.WriteString(entry)
+	s.allHistoryBuilder.WriteString(entry)
 }
 
 // 保存历史到文件：在应用退到后台或者被系统停止时调用
-func saveHistoryToFile(builder *strings.Builder) {
-	if builder == nil || builder.Len() == 0 {
+func (s *CalcState) saveHistoryToFile() {
+	if s.allHistoryBuilder == nil || s.allHistoryBuilder.Len() == 0 {
 		return // 如果没有内容，直接返回，避免覆写空文件
 	}
 
 	// 自动清理逻辑：防止内存中的 Builder 过大
 	// 500KB 约等于 512,000 字节
-	if builder.Len() > 500*1024 {
-		content := builder.String()
+	if s.allHistoryBuilder.Len() > 500*1024 {
+		content := s.allHistoryBuilder.String()
 		lines := strings.Split(content, "\n")
 
 		if len(lines) > 5000 {
@@ -180,8 +227,8 @@ func saveHistoryToFile(builder *strings.Builder) {
 			newContent := strings.Join(lines[len(lines)-5000:], "\n")
 
 			// strings.Builder 不支持直接删除，必须重置后重新写入
-			builder.Reset()
-			builder.WriteString(newContent)
+			s.allHistoryBuilder.Reset()
+			s.allHistoryBuilder.WriteString(newContent)
 		}
 	}
 
@@ -193,7 +240,7 @@ func saveHistoryToFile(builder *strings.Builder) {
 	}
 
 	// 在根目录下构建/获取 history.txt 的完整路径对象
-	fileURI, err := storage.Child(rootURI, "history.txt")
+	fileURI, err := storage.Child(rootURI, s.saveFileName)
 	if err != nil {
 		return
 	}
@@ -205,17 +252,17 @@ func saveHistoryToFile(builder *strings.Builder) {
 	}
 	defer writer.Close()
 
-	_, _ = writer.Write([]byte(builder.String()))
+	_, _ = writer.Write([]byte(s.allHistoryBuilder.String()))
 }
 
 // 从文件加载历史：在应用启动时调用，返回文件内容的字节切片
-func loadHistoryFromFile() []byte {
+func (s *CalcState) loadHistoryFromFile() []byte {
 	rootURI := fyne.CurrentApp().Storage().RootURI()
 	if rootURI == nil {
 		return nil
 	}
 
-	fileURI, err := storage.Child(rootURI, "history.txt")
+	fileURI, err := storage.Child(rootURI, s.saveFileName)
 	if err != nil {
 		return nil
 	}

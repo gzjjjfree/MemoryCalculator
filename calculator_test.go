@@ -62,7 +62,7 @@ func TestCalculate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 设置模式
-			state.IsRadian.Set(tt.isRadian)
+			state.isRadian.Set(tt.isRadian)
 			
 			// 执行计算
 			got := state.Calculate(tt.input)

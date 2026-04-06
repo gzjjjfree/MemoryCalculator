@@ -1,13 +1,16 @@
 module github.com/gzjjjfree/MemoryCalculator
 
-go 1.24
+go 1.26.1
 
 require (
 	fyne.io/fyne/v2 v2.7.2
 	github.com/Knetic/govaluate v3.0.0+incompatible
 )
 
+require github.com/goki/freetype v0.0.0-20181231101311-fa8a33aabaff // indirect
+
 require (
+	fyne.io/fyne v1.4.3
 	fyne.io/systray v1.12.0 // indirect
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

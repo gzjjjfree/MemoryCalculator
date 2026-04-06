@@ -18,50 +18,6 @@ import (
 	"github.com/Knetic/govaluate"
 )
 
-type CalcState struct {
-	win fyne.Window
-
-	Display           binding.String   // 当前输入的算式
-	Result            binding.String   // 当前算式的结果预览
-	History           binding.String   // 历史记录（每次计算完成后追加）
-	AllHistoryBuilder *strings.Builder // 用于保存所有历史记录的字符串，方便写入文件
-	lastRecordDate    string           // 记录上一次写入时的日期（如 "2026-03-31"）
-
-	IsNewNumber bool // 是否正在输入一个新的数字（而不是继续在当前数字后面输入）
-
-	IsResultMode binding.Bool // true 代表显示结果（结果粗），false 代表输入中（输入粗)
-	IsCalcBig    binding.Bool // 是否使用高级计算布局
-	IsRadian     binding.Bool // true 为弧度模式，false 为角度模式
-	Is2ndMode    binding.Bool // 是否处于 2nd 模式
-
-	isInterceptingForScore bool            // 是否正在拦截输入
-	onScoreInput           func(string)    // 拦截时的回调函数
-	scoreOverlay           *fyne.Container // 平摊功能的 UI 容器
-}
-
-// 构造函数，初始化状态
-func NewCalcState(w fyne.Window) *CalcState {
-	s := &CalcState{
-		Display:           binding.NewString(),
-		Result:            binding.NewString(),
-		History:           binding.NewString(),
-		AllHistoryBuilder: &strings.Builder{},
-		IsNewNumber:       true,
-		IsResultMode:      binding.NewBool(),
-		IsCalcBig:         binding.NewBool(),
-		IsRadian:          binding.NewBool(),
-		Is2ndMode:         binding.NewBool(),
-		win:               w,
-	}
-	s.Display.Set("")
-	s.Result.Set("0")
-	s.IsResultMode.Set(true) // 初始结果行粗
-	s.IsCalcBig.Set(false)
-	s.IsRadian.Set(false) // 默认角度模式
-	s.Is2ndMode.Set(false)
-	return s
-}
-
 // 处理按键输入的核心函数
 func (s *CalcState) OnTap(char string) {
 	// 如果处于拦截模式，将按键传给临时函数，不执行计算逻辑
@@ -71,7 +27,7 @@ func (s *CalcState) OnTap(char string) {
 	}
 
 	// 获取当前是否处于结果模式（结果模式下输入算式会重置当前输入）
-	isResultMode, _ := s.IsResultMode.Get()
+	isResultMode, _ := s.isResultMode.Get()
 
 	// 如果当前是结果模式，点击 % 则运行特定函数, 不执行计算逻辑
 	if char == "%" && isResultMode {
@@ -79,26 +35,26 @@ func (s *CalcState) OnTap(char string) {
 		return
 	}
 
-	current, _ := s.Display.Get()
+	current, _ := s.display.Get()
 
 	// 防止第一个字符就是运算符 (除了减号表示负数)
-	if current == "" && s.IsNewNumber {
+	if current == "" && s.isNewNumber {
 		if strings.ContainsAny(char, "+×÷)") {
 			return
 		}
 	}
 
 	// 如果是新数字开始，重置加粗状态
-	if s.IsNewNumber {
+	if s.isNewNumber {
 		// 如果新输入的字符是运算符，且当前结果不是 0，则保留结果作为新输入的开头（例如继续在结果后面输入运算符）
-		result, _ := s.Result.Get()
+		result, _ := s.result.Get()
 		current = ""
 		if result != "0" && strings.ContainsAny(char, "+-×÷)") {
 			current = result[2:]
 		}
-		s.IsResultMode.Set(false)
-		s.Display.Set(current + char)
-		s.IsNewNumber = false
+		s.isResultMode.Set(false)
+		s.display.Set(current + char)
+		s.isNewNumber = false
 		return
 	} else {
 		// 处理重复点击运算符：如果最后一个字符是运算符，再次点击则替换它
@@ -106,18 +62,18 @@ func (s *CalcState) OnTap(char string) {
 		if len(current) > 0 && strings.ContainsAny(char, operators) {
 			lastChar := current[len(current)-1:]
 			if strings.ContainsAny(lastChar, operators) {
-				s.Display.Set(current[:len(current)-1] + char)
+				s.display.Set(current[:len(current)-1] + char)
 				return
 			}
 		}
-		s.Display.Set(current + char)
+		s.display.Set(current + char)
 	}
 
 	// 实时更新结果
-	newEq, _ := s.Display.Get()
+	newEq, _ := s.display.Get()
 	res := s.Calculate(newEq)
 	if res != "" {
-		s.Result.Set("= " + res)
+		s.result.Set("= " + res)
 	}
 }
 
@@ -129,25 +85,25 @@ func (s *CalcState) OnClear() {
 		return
 	}
 
-	current, _ := s.Display.Get()
-	history, _ := s.History.Get()
+	current, _ := s.display.Get()
+	history, _ := s.history.Get()
 	finalRes := s.Calculate(current)
 	// 只有当当前有输入内容时才存入历史，避免存入多余空行
-	if s.IsNewNumber == false && current != "0" && current != "" {
+	if s.isNewNumber == false && current != "0" && current != "" {
 		current = checkLastOperator(current)
 
 		newHistory, _ := updateFontSizeBasedOnWidth(current+" = "+finalRes, nil) // 更新字体大小和换行状态
-		s.History.Set(history + "\n" + newHistory)
+		s.history.Set(history + "\n" + newHistory)
 
 		s.recordToHistory(current, finalRes) // 追加到历史记录中
 	}
 
-	s.Display.Set("")
-	s.Result.Set("0")
+	s.display.Set("")
+	s.result.Set("0")
 
-	s.IsNewNumber = true
+	s.isNewNumber = true
 	isChangeRow = false
-	s.IsResultMode.Set(true)
+	s.isResultMode.Set(true)
 }
 
 // 处理等号键
@@ -158,8 +114,8 @@ func (s *CalcState) OnEqual() {
 		return
 	}
 
-	history, _ := s.History.Get()
-	current, _ := s.Display.Get()
+	history, _ := s.history.Get()
+	current, _ := s.display.Get()
 
 	// 自动补全未闭合的括号 (防止 govaluate 报错)
 	leftCount := strings.Count(current, "(")
@@ -175,12 +131,12 @@ func (s *CalcState) OnEqual() {
 		current = checkLastOperator(current)
 
 		newHistory, _ := updateFontSizeBasedOnWidth(current+" = "+finalRes, nil) // 更新字体大小和换行状态
-		s.History.Set(history + "\n" + newHistory)
+		s.history.Set(history + "\n" + newHistory)
 
-		s.Result.Set("= " + finalRes)
-		s.IsNewNumber = true
+		s.result.Set("= " + finalRes)
+		s.isNewNumber = true
 		isChangeRow = false
-		s.IsResultMode.Set(true)
+		s.isResultMode.Set(true)
 
 		s.recordToHistory(current, finalRes) // 追加到历史记录中
 	}
@@ -215,7 +171,7 @@ func (s *CalcState) Calculate(equation string) string {
 		exprStr += strings.Repeat(")", leftCount-rightCount)
 	}
 
-	isRad, _ := s.IsRadian.Get()
+	isRad, _ := s.isRadian.Get()
 	// 定义高级函数映射 (增加安全检查)
 	functions := map[string]govaluate.ExpressionFunction{
 		"sin": func(args ...any) (any, error) {
@@ -363,7 +319,7 @@ func (s *CalcState) Calculate(equation string) string {
 		return ""
 	}
 
-	res, err := expression.Evaluate(map[string]any{})	
+	res, err := expression.Evaluate(map[string]any{})
 	if err != nil {
 		return "Error"
 	}
@@ -414,14 +370,14 @@ func (s *CalcState) OnBackspace() {
 	}
 
 	// 如果当前处于结果显示模式，退格键通常应该直接清空结果回到输入模式
-	isResult, _ := s.IsResultMode.Get()
+	isResult, _ := s.isResultMode.Get()
 	if isResult {
-		s.IsResultMode.Set(false)
-		s.IsNewNumber = false
+		s.isResultMode.Set(false)
+		s.isNewNumber = false
 		return
 	}
 
-	current, _ := s.Display.Get()
+	current, _ := s.display.Get()
 	if current == "0" || current == "" {
 		return
 	}
@@ -430,8 +386,8 @@ func (s *CalcState) OnBackspace() {
 	runes := []rune(current)
 
 	if len(runes) <= 1 { // 如果只有一个字符，退格后变成空
-		s.Display.Set("")
-		s.Result.Set("= 0")
+		s.display.Set("")
+		s.result.Set("= 0")
 		isChangeRow = false // 重置换行状态
 	} else {
 		// 删掉最后一个字符
@@ -453,34 +409,34 @@ func (s *CalcState) OnBackspace() {
 		stateMutex.Lock()
 		isChangeRow = false
 		stateMutex.Unlock()
-		s.Display.Set(newEq)
+		s.display.Set(newEq)
 
 		// 更新实时预览
 		res := s.Calculate(newEq)
 		if res != "" {
-			s.Result.Set("= " + res)
+			s.result.Set("= " + res)
 		} else {
-			s.Result.Set("0")
+			s.result.Set("0")
 		}
 	}
 }
 
 // 切换大布局的动作
 func (s *CalcState) OnGoBigGrid() {
-	s.IsNewNumber = true
-	if ok, _ := s.IsCalcBig.Get(); ok {
-		s.IsCalcBig.Set(false)
+	s.isNewNumber = true
+	if ok, _ := s.isCalcBig.Get(); ok {
+		s.isCalcBig.Set(false)
 	} else {
-		s.IsCalcBig.Set(true)
+		s.isCalcBig.Set(true)
 	}
 }
 
 // 处理高级函数按钮的输入
 func (s *CalcState) OnAdvancedTap(op string) {
-	s.IsNewNumber = false
-	s.IsResultMode.Set(false)
-	is2nd, _ := s.Is2ndMode.Get()
-	current, _ := s.Display.Get()
+	s.isNewNumber = false
+	s.isResultMode.Set(false)
+	is2nd, _ := s.is2ndMode.Get()
+	current, _ := s.display.Get()
 
 	// 注意：这里的 key 必须和你按钮初始化的 text 一致
 	opMapping := map[string]string{
@@ -509,9 +465,9 @@ func (s *CalcState) OnAdvancedTap(op string) {
 		}
 	}
 
-	s.Display.Set(current + toAdd)
+	s.display.Set(current + toAdd)
 
-	newEq, _ := s.Display.Get()
+	newEq, _ := s.display.Get()
 	// 如果是以 "(" 结尾（刚输入完函数名），通常不需要显示即时预览结果
 	if strings.HasSuffix(newEq, "(") {
 		return
@@ -520,28 +476,28 @@ func (s *CalcState) OnAdvancedTap(op string) {
 	// 实时预览
 	res := s.Calculate(newEq)
 	if res != "" {
-		s.Result.Set("= " + res)
+		s.result.Set("= " + res)
 	}
 }
 
 // 切换 DEG/RAD 的动作
 func (s *CalcState) OnDegToRad() {
-	isRad, _ := s.IsRadian.Get()
+	isRad, _ := s.isRadian.Get()
 
-	s.IsRadian.Set(!isRad)
+	s.isRadian.Set(!isRad)
 
 	// 切换后重新触发一次计算，更新预览结果
-	current, _ := s.Display.Get()
+	current, _ := s.display.Get()
 	if current == "" {
-		s.Result.Set("0")
+		s.result.Set("0")
 	}
-	s.Result.Set("= " + s.Calculate(current))
+	s.result.Set("= " + s.Calculate(current))
 }
 
 // 切换 2nd 状态的动作
 func (s *CalcState) OnToggle2nd() {
-	val, _ := s.Is2ndMode.Get()
-	s.Is2ndMode.Set(!val)
+	val, _ := s.is2ndMode.Get()
+	s.is2ndMode.Set(!val)
 }
 
 // 最后一个字符为运算符时，删除它
@@ -559,7 +515,7 @@ func checkLastOperator(equation string) string {
 
 // 显示平摊分数的界面
 func (s *CalcState) displayScore() {
-	result, _ := s.Result.Get()
+	result, _ := s.result.Get()
 	scoreStr := strings.TrimPrefix(result, "= ")
 	scoreFloat, _ := strconv.ParseFloat(scoreStr, 64)
 	totalScore := int(scoreFloat)
@@ -575,15 +531,15 @@ func (s *CalcState) displayScore() {
 	updatePreview := func() {
 		val, _ := peopleInput.Get()
 		if val == "" {
-			s.Result.Set(fmt.Sprintf("总分:%d | 请输入人数", totalScore))
-			s.IsResultMode.Set(false)
+			s.result.Set(fmt.Sprintf("总分:%d | 请输入人数", totalScore))
+			s.isResultMode.Set(false)
 			return
 		}
 
 		num, err := strconv.Atoi(val)
 		if err != nil || num <= 0 {
-			s.Result.Set("人数无效")
-			s.IsResultMode.Set(false)
+			s.result.Set("人数无效")
+			s.isResultMode.Set(false)
 			return
 		}
 
@@ -595,10 +551,10 @@ func (s *CalcState) displayScore() {
 			finalStr = fmt.Sprintf("总分:%d | %d人%d分  ", totalScore, num, base)
 		} else {
 			finalStr = fmt.Sprintf("总分:%d | %d人%d分, %d人%d分  ",
-				totalScore, rem, base + 1, num - rem, base)
+				totalScore, rem, base+1, num-rem, base)
 		}
-		s.Result.Set(finalStr)
-		s.IsResultMode.Set(false)
+		s.result.Set(finalStr)
+		s.isResultMode.Set(false)
 	}
 
 	// 监听输入变化实现实时预览
@@ -618,7 +574,7 @@ func (s *CalcState) displayScore() {
 		s.isInterceptingForScore = false
 		s.scoreOverlay.Hide()
 		// 返回时恢复原始结果显示
-		s.Result.Set(result)
+		s.result.Set(result)
 	})
 
 	// 变更为重置按钮
@@ -664,8 +620,8 @@ func (s *CalcState) displayScore() {
 		} else if char == "C" {
 			s.isInterceptingForScore = false
 			s.scoreOverlay.Hide()
-			s.Result.Set(result)
-			s.IsResultMode.Set(false)
+			s.result.Set(result)
+			s.isResultMode.Set(false)
 		} else if char == "⌫" {
 			if current != "" {
 				runes := []rune(current)

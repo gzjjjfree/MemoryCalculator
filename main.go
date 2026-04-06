@@ -21,7 +21,7 @@ func main() {
 
 	// 在后台加载历史记录，避免界面卡顿
 	go func() {
-		state.AllHistoryBuilder.Write(loadHistoryFromFile())
+		state.allHistoryBuilder.Write(state.loadHistoryFromFile())
 	}()
 
 	// 创建UI界面
@@ -40,10 +40,10 @@ func main() {
 
 	// 当应用退到后台（例如按了 Home 键），或者被系统停止时触发保存
 	myApp.Lifecycle().SetOnExitedForeground(func() {
-		saveHistoryToFile(state.AllHistoryBuilder)
+		state.saveHistoryToFile()
 	})
 	myApp.Lifecycle().SetOnStopped(func() {
-		saveHistoryToFile(state.AllHistoryBuilder)
+		state.saveHistoryToFile()
 	})
 
 	win.ShowAndRun()

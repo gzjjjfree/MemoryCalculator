@@ -30,10 +30,10 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 		historyWin.Resize(fyne.NewSize(360, 640))
 
 		// 将 Builder 内容转为切片，过滤掉可能的空行
-		rawLines := strings.Split(state.AllHistoryBuilder.String(), "\n")
+		rawLines := strings.Split(state.allHistoryBuilder.String(), "\n")
 		var data []string
 		for _, line := range rawLines {
-			trimmed := strings.TrimSpace(line)
+			trimmed := strings.TrimSpace(line) // 去除行首尾空白
 			if trimmed == "" {
 				continue
 			}
@@ -50,8 +50,8 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 			func() fyne.CanvasObject {
 				label := widget.NewLabel("")
 				label.Alignment = fyne.TextAlignTrailing
-				label.Wrapping = fyne.TextWrapBreak               // 允许在长等式处自动换行
-				label.TextStyle = fyne.TextStyle{Monospace: true} // 等宽字体更整齐
+				//label.Wrapping = fyne.TextWrapBreak               // 允许在长等式处自动换行
+				//label.TextStyle = fyne.TextStyle{Monospace: true} // 等宽字体更整齐
 				labelFontSize = 18
 				label.SizeName = LabelFont
 
@@ -112,7 +112,7 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 	richInput.Wrapping = fyne.TextWrapWord // 改为按单词换行
 
 	// 定义结果显示
-	lblResult := widget.NewLabelWithData(state.Result)
+	lblResult := widget.NewLabelWithData(state.result)
 	lblResult.Alignment = fyne.TextAlignTrailing
 
 	// 即时历史显示框, 冒泡显示
@@ -130,10 +130,10 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 	var isListener bool = true
 	// --- 设置监听器 (现在它们控制的是上面那三个实例) ---
 	refreshRichInput := func() {
-		isBold, _ := state.IsResultMode.Get()
+		isBold, _ := state.isResultMode.Get()
 		lblResult.TextStyle = fyne.TextStyle{Bold: isBold}
 
-		text, _ := state.Display.Get()
+		text, _ := state.display.Get()
 
 		// 根据当前输入框宽度和文本内容动态调整字体大小
 		actualW = richInput.Size().Width - theme.Padding()*4 // 留出一些内边距空间
@@ -141,7 +141,7 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 
 		// 根据是否是结果模式调整字体大小和样式
 		if isBold {
-			textresult, _ := state.Result.Get()
+			textresult, _ := state.result.Get()
 			fontSizes := []float32{42, 40, 38, 36, 34, 32, 30, 28, 26, 24, 22, 20, 18}
 			for _, size := range fontSizes {
 				if measureWidth(textresult, size) <= actualW {
@@ -158,7 +158,7 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 		stateMutex.Lock()
 		if isFinal {
 			isListener = false
-			state.Display.Set(changeText)
+			state.display.Set(changeText)
 			isListener = true
 		}
 		stateMutex.Unlock()
@@ -190,8 +190,8 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 
 	go func() { // 后台启动监听
 		// 每次更新历史时，自动滚动到底部
-		state.History.AddListener(binding.NewDataListener(func() {
-			hText, _ := state.History.Get()
+		state.history.AddListener(binding.NewDataListener(func() {
+			hText, _ := state.history.Get()
 
 			richHistory.Segments = []widget.RichTextSegment{
 				&widget.TextSegment{
@@ -211,20 +211,20 @@ func CreateUI(state *CalcState) fyne.CanvasObject {
 			})
 		}))
 
-		state.Display.AddListener(binding.NewDataListener(func() {
+		state.display.AddListener(binding.NewDataListener(func() {
 			if isListener {
 				refreshRichInput()
 			}
 		}))
 
 		// --- 监听模式变化 (OnEqual 动作会触发这里) ---
-		state.IsResultMode.AddListener(binding.NewDataListener(func() {
+		state.isResultMode.AddListener(binding.NewDataListener(func() {
 			refreshRichInput() // 按下等号时也要刷新一次颜色和粗细
 		}))
 
 		calcBigGrid = createConverterGrid(state) // 新的布局 5x7 布局
-		state.IsCalcBig.AddListener(binding.NewDataListener(func() {
-			if ok, _ := state.IsCalcBig.Get(); ok {
+		state.isCalcBig.AddListener(binding.NewDataListener(func() {
+			if ok, _ := state.isCalcBig.Get(); ok {
 				keypadContainer.Objects = []fyne.CanvasObject{calcBigGrid}
 				keypadContainer.Refresh()
 			} else {
@@ -323,8 +323,8 @@ func createConverterGrid(state *CalcState) fyne.CanvasObject {
 	degBtnObj := container.NewStack(degBtn)
 
 	// 为 IsRadian 增加监听器，实现 UI 自动同步
-	state.IsRadian.AddListener(binding.NewDataListener(func() {
-		isRad, _ := state.IsRadian.Get()
+	state.isRadian.AddListener(binding.NewDataListener(func() {
+		isRad, _ := state.isRadian.Get()
 		if isRad {
 			degBtn.SetText("RAD")
 		} else {
@@ -351,8 +351,8 @@ func createConverterGrid(state *CalcState) fyne.CanvasObject {
 	}
 
 	//定义 2nd 模式切换逻辑
-	state.Is2ndMode.AddListener(binding.NewDataListener(func() {
-		is2nd, _ := state.Is2ndMode.Get()
+	state.is2ndMode.AddListener(binding.NewDataListener(func() {
+		is2nd, _ := state.is2ndMode.Get()
 
 		// 定义对应的文字映射
 		labels := map[string][2]string{
