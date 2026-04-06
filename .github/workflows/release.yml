@@ -16,7 +16,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          go-version: "1.24"
 
       - name: Set up Java
         # 签名工具 apksigner 需要 Java 环境
